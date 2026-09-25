@@ -1,8 +1,13 @@
 import express from 'express';
-import { CreateProductSchema, treeifyError, type CreateProductInput } from '@ecommerce/schemas';
+import { productsRouter } from './routes/products';
+import { categoriesRouter } from './routes/categories';
+import { addressesRouter } from './routes/addresses';
+import { cartsRouter } from './routes/carts';
+import { ordersRouter } from './routes/orders';
+import env from './config/env';
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = env.PORT;
 
 app.use(express.json());
 
@@ -10,17 +15,11 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.post('/products', (req, res) => {
-  const parsed = CreateProductSchema.safeParse(req.body);
-
-  if (!parsed.success) {
-    res.status(400).json({ errors: treeifyError(parsed.error) });
-    return;
-  }
-
-  const input: CreateProductInput = parsed.data;
-  res.status(201).json({ product: input });
-});
+app.use('/products', productsRouter);
+app.use('/categories', categoriesRouter);
+app.use('/addresses', addressesRouter);
+app.use('/carts', cartsRouter);
+app.use('/orders', ordersRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);

@@ -7,6 +7,7 @@ export {
   formatMoney,
   type MoneyCents,
 } from './money';
+export * from './users';
 export * from './categories';
 export * from './addresses';
 export * from './products';
