@@ -35,6 +35,7 @@ export const UserSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   lastUpdated: z.iso.datetime(),
 });
+export type User = z.infer<typeof UserSchema>;
 
 export const CreateUserSchema = z
   .strictObject({
@@ -48,6 +49,7 @@ export const CreateUserSchema = z
     message: '"password" and "confirmPassword" must match',
     path: ['confirmPassword'],
   });
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 
 const UpdatePasswordSchema = z
   .strictObject({
@@ -72,3 +74,4 @@ export const UpdateUserSchema = z
   .refine((val) => Object.values(val).some((v) => v !== undefined), {
     message: 'At least one field must be provided',
   });
+export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
