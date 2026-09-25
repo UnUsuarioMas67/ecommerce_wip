@@ -1,17 +1,18 @@
 import { z } from 'zod';
 
-export const ProductSchema = z.object({
-  id: z.uuid(),
-  name: z.string().min(1).max(100),
-  price: z.number().positive(),
-  stock: z.number().int().nonnegative().default(0),
-});
-
-export const CreateProductSchema = ProductSchema.omit({ id: true });
-
-export type Product = z.infer<typeof ProductSchema>;
-export type CreateProductInput = z.infer<typeof CreateProductSchema>;
+export {
+  money,
+  MoneyCentsSchema,
+  centsToDecimal,
+  formatMoney,
+  type MoneyCents,
+} from './money';
+export * from './categories';
+export * from './addresses';
+export * from './products';
+export * from './carts';
+export * from './orders';
 
 export function treeifyError(err: z.ZodError) {
-  return z.treeifyError(err)
+  return z.treeifyError(err);
 }
