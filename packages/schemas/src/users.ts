@@ -1,10 +1,10 @@
-import z from 'zod';
+import { z } from 'zod';
 
 export const UserRoleSchema = z.enum(['client', 'admin']);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
 export const UserIdSchema = z.uuid();
-export type UserId = z.infer<typeof UserIdSchema>
+export type UserId = z.infer<typeof UserIdSchema>;
 
 const PasswordSchema = z
   .string()
@@ -15,14 +15,22 @@ const PasswordSchema = z
   .regex(/[^a-zA-Z\d]/, 'At least one special character')
   .max(64);
 
-export const UserSchema = z.object({
+const BirthDateSchema = z
+  .iso.date()
+  .refine((date) => new Date(date).getTime() <= Date.now(), {
+    message: 'birthDate cannot be in the future',
+  });
+
+const NameSchema = z.string().min(1).max(50);
+
+export const UserSchema = z.strictObject({
   id: UserIdSchema,
-  firstName: z.string().nonempty().max(50),
-  lastName: z.string().nonempty().max(50),
+  firstName: NameSchema,
+  lastName: NameSchema,
   email: z.email(),
-  passwordHash: z.string(),
+  passwordHash: z.string().min(1),
   phoneNumber: z.e164(),
-  birthDate: z.iso.date(),
+  birthDate: BirthDateSchema,
 
   createdAt: z.iso.datetime(),
   lastUpdated: z.iso.datetime(),
@@ -30,15 +38,16 @@ export const UserSchema = z.object({
 
 export const CreateUserSchema = z
   .strictObject({
-    firstName: z.string().nonempty().max(50),
-    lastName: z.string().nonempty().max(50),
-    email: z.email(),
+    ...UserSchema.pick({ firstName: true, lastName: true, email: true }).shape,
     password: PasswordSchema,
     confirmPassword: z.string(),
     phoneNumber: z.e164(),
-    birthDate: z.iso.date(),
+    birthDate: BirthDateSchema,
   })
-  .refine((val) => val.confirmPassword === val.password, { error: '"password" and "confirmPassword" must match' });
+  .refine((val) => val.confirmPassword === val.password, {
+    message: '"password" and "confirmPassword" must match',
+    path: ['confirmPassword'],
+  });
 
 const UpdatePasswordSchema = z
   .strictObject({
@@ -46,14 +55,20 @@ const UpdatePasswordSchema = z
     newPassword: PasswordSchema,
     confirmPassword: z.string(),
   })
-  .refine((val) => val.confirmPassword === val.newPassword, { error: '"newPassword" and "confirmPassword" must match' });
+  .refine((val) => val.confirmPassword === val.newPassword, {
+    message: '"newPassword" and "confirmPassword" must match',
+    path: ['confirmPassword'],
+  });
 
 export const UpdateUserSchema = z
   .strictObject({
-    firstName: z.string().nonempty().max(50),
-    lastName: z.string().nonempty().max(50),
+    firstName: NameSchema,
+    lastName: NameSchema,
     updatePassword: UpdatePasswordSchema,
     phoneNumber: z.e164(),
-    birthDate: z.iso.date(),
+    birthDate: BirthDateSchema,
   })
-  .partial();
+  .partial()
+  .refine((val) => Object.values(val).some((v) => v !== undefined), {
+    message: 'At least one field must be provided',
+  });
