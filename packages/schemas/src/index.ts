@@ -6,13 +6,13 @@ export {
   centsToDecimal,
   formatMoney,
   type MoneyCents,
-} from './money';
-export * from './users';
-export * from './categories';
-export * from './addresses';
-export * from './products';
-export * from './carts';
-export * from './orders';
+} from './money.js';
+export * from './users.js';
+export * from './categories.js';
+export * from './addresses.js';
+export * from './products.js';
+export * from './carts.js';
+export * from './orders.js';
 
 export function treeifyError(err: z.ZodError) {
   return z.treeifyError(err);

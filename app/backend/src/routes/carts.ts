@@ -9,7 +9,7 @@ import {
   type Cart,
   type CartItem,
 } from '@ecommerce/schemas';
-import { store, nowIso } from '../store';
+import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
 export const cartsRouter = Router();

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UserIdSchema } from './users';
+import { UserIdSchema } from './users.js';
 
 export const AddressIdSchema = z.uuid();
 export type AddressId = z.infer<typeof AddressIdSchema>;

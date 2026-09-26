@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { ProductIdSchema } from './products';
-import { UserIdSchema } from './users';
-import { MoneyCentsSchema } from './money';
+import { ProductIdSchema } from './products.js';
+import { UserIdSchema } from './users.js';
+import { MoneyCentsSchema } from './money.js';
 
 export const CartIdSchema = z.uuid();
 export type CartId = z.infer<typeof CartIdSchema>;

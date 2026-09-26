@@ -2,6 +2,7 @@
   "name": "@ecommerce/backend",
   "version": "1.0.0",
   "description": "Express backend for the ecommerce app",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

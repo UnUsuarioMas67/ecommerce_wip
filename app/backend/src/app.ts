@@ -1,9 +1,9 @@
 import express from 'express';
-import { productsRouter } from './routes/products';
-import { categoriesRouter } from './routes/categories';
-import { addressesRouter } from './routes/addresses';
-import { cartsRouter } from './routes/carts';
-import { ordersRouter } from './routes/orders';
+import { productsRouter } from './routes/products.js';
+import { categoriesRouter } from './routes/categories.js';
+import { addressesRouter } from './routes/addresses.js';
+import { cartsRouter } from './routes/carts.js';
+import { ordersRouter } from './routes/orders.js';
 
 const app = express();
 

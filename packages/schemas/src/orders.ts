@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { CartIdSchema } from './carts';
-import { ProductIdSchema } from './products';
-import { UserIdSchema } from './users';
-import { AddressSnapshotSchema } from './addresses';
-import { MoneyCentsSchema } from './money';
+import { CartIdSchema } from './carts.js';
+import { ProductIdSchema } from './products.js';
+import { UserIdSchema } from './users.js';
+import { AddressSnapshotSchema } from './addresses.js';
+import { MoneyCentsSchema } from './money.js';
 
 export const OrderIdSchema = z.uuid();
 export type OrderId = z.infer<typeof OrderIdSchema>;

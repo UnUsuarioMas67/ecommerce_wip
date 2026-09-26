@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { CategoryIdSchema } from './categories';
-import { money, MoneyCentsSchema } from './money';
+import { CategoryIdSchema } from './categories.js';
+import { money, MoneyCentsSchema } from './money.js';
 
 export const ProductIdSchema = z.uuid();
 export type ProductId = z.infer<typeof ProductIdSchema>;

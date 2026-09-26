@@ -5,7 +5,7 @@ import {
   ProductIdSchema,
   type Product,
 } from '@ecommerce/schemas';
-import { store, nowIso } from '../store';
+import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
 export const productsRouter = Router();

@@ -6,7 +6,7 @@ import {
   UpdateCategorySchema,
   type Category,
 } from '@ecommerce/schemas';
-import { store, nowIso } from '../store';
+import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
 export const categoriesRouter = Router();

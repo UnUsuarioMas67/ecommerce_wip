@@ -8,7 +8,7 @@ import {
   UserIdSchema,
   type Address,
 } from '@ecommerce/schemas';
-import { store, nowIso } from '../store';
+import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
 export const addressesRouter = Router();
