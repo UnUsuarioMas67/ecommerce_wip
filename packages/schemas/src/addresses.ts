@@ -46,7 +46,6 @@ export const AddressSchema = z.strictObject({
 export type Address = z.infer<typeof AddressSchema>;
 
 export const CreateAddressSchema = z.strictObject({
-  userId: UserIdSchema,
   label: z.string().min(1).max(50).default('Default'),
   recipient: RecipientSchema,
   line1: LineSchema,

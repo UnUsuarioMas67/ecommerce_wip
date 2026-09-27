@@ -22,14 +22,7 @@ export const CartSchema = z.strictObject({
 });
 export type Cart = z.infer<typeof CartSchema>;
 
-export const CreateCartSchema = z
-  .strictObject({
-    userId: UserIdSchema.optional(),
-    sessionId: z.string().min(1).max(200).optional(),
-  })
-  .refine((val) => val.userId !== undefined || val.sessionId !== undefined, {
-    message: 'Either "userId" or "sessionId" must be provided',
-  });
+export const CreateCartSchema = z.strictObject({});
 export type CreateCartInput = z.infer<typeof CreateCartSchema>;
 
 export const CartItemSchema = z.strictObject({

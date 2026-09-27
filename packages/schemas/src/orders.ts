@@ -48,7 +48,6 @@ export const OrderItemSchema = z.strictObject({
 export type OrderItem = z.infer<typeof OrderItemSchema>;
 
 export const CreateOrderSchema = z.strictObject({
-  userId: UserIdSchema.nullish().optional(),
   cartId: CartIdSchema,
   billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
