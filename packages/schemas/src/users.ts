@@ -75,3 +75,41 @@ export const UpdateUserSchema = z
     message: 'At least one field must be provided',
   });
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
+
+export const LoginSchema = z.strictObject({
+  email: EmailSchema,
+  password: z.string().min(1),
+});
+export type LoginInput = z.infer<typeof LoginSchema>;
+
+export const RefreshTokenSchema = z.strictObject({
+  refreshToken: z.string().min(32).max(512),
+});
+export type RefreshTokenInput = z.infer<typeof RefreshTokenSchema>;
+
+export const AccessTokenClaimsSchema = z.strictObject({
+  sub: UserIdSchema,
+  role: UserRoleSchema,
+  typ: z.literal('access'),
+  ver: z.number().int().nonnegative(),
+  jti: z.string().min(1),
+  iss: z.string().min(1),
+  aud: z.string().min(1),
+  iat: z.number().int(),
+  exp: z.number().int(),
+});
+export type AccessTokenClaims = z.infer<typeof AccessTokenClaimsSchema>;
+
+export const TokenResponseSchema = z.strictObject({
+  accessToken: z.string().min(1),
+  refreshToken: z.string().min(1),
+  tokenType: z.literal('Bearer'),
+  expiresIn: z.number().int().positive(),
+});
+export type TokenResponse = z.infer<typeof TokenResponseSchema>;
+
+export const AuthResponseSchema = z.strictObject({
+  user: PublicUserSchema,
+  ...TokenResponseSchema.shape,
+});
+export type AuthResponse = z.infer<typeof AuthResponseSchema>;
