@@ -1,13 +1,47 @@
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 try {
   process.loadEnvFile(new URL('../../.env', import.meta.url));
 } catch {}
 
-const EnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().int().default(3000),
-});
+const EnvSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    PORT: z.coerce.number().int().default(3000),
+    JWT_SECRET: z.string().min(32).optional(),
+    ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+    ADMIN_EMAIL: z.email().optional(),
+    ADMIN_PASSWORD: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.NODE_ENV !== 'production') return;
+    const missing = (['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD'] as const).filter(
+      (key) => !values[key],
+    );
+    for (const key of missing) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: `${key} is required when NODE_ENV=production`,
+      });
+    }
+  });
 
-const env = EnvSchema.parse(process.env);
+const parsed = EnvSchema.parse(process.env);
+
+if (!parsed.JWT_SECRET) {
+  console.warn(
+    '[env] JWT_SECRET is not set; generated an ephemeral secret. Access tokens will not survive a restart.',
+  );
+}
+
+const env = {
+  ...parsed,
+  JWT_SECRET: parsed.JWT_SECRET ?? randomBytes(32).toString('hex'),
+  ADMIN_EMAIL: parsed.ADMIN_EMAIL ?? 'admin@ecommerce.test',
+  ADMIN_PASSWORD: parsed.ADMIN_PASSWORD ?? 'ChangeMe1234!',
+};
+
 export default env;
