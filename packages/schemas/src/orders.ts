@@ -22,7 +22,7 @@ export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
 export const OrderSchema = z.strictObject({
   id: OrderIdSchema,
-  userId: UserIdSchema.nullish(),
+  userId: UserIdSchema,
   status: OrderStatusSchema,
   subtotalCents: MoneyCentsSchema,
   taxCents: MoneyCentsSchema,

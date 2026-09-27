@@ -14,8 +14,7 @@ export type CartStatus = z.infer<typeof CartStatusSchema>;
 
 export const CartSchema = z.strictObject({
   id: CartIdSchema,
-  userId: UserIdSchema.nullish(),
-  sessionId: z.string().min(1).max(200).nullish(),
+  userId: UserIdSchema,
   status: CartStatusSchema,
   createdAt: z.iso.datetime(),
   lastUpdated: z.iso.datetime(),
