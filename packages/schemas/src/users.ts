@@ -6,7 +6,9 @@ export type UserRole = z.infer<typeof UserRoleSchema>;
 export const UserIdSchema = z.uuid();
 export type UserId = z.infer<typeof UserIdSchema>;
 
-const PasswordSchema = z
+export const EmailSchema = z.email().toLowerCase();
+
+export const PasswordSchema = z
   .string()
   .min(8, 'At least 8 characters')
   .regex(/[A-Z]/, 'At least one uppercase')
@@ -14,6 +16,9 @@ const PasswordSchema = z
   .regex(/\d/, 'At least one number')
   .regex(/[^a-zA-Z\d]/, 'At least one special character')
   .max(64);
+export type Password = z.infer<typeof PasswordSchema>;
+
+export const PasswordHashSchema = z.string().regex(/^scrypt\$/, 'Malformed password hash');
 
 const BirthDateSchema = z
   .iso.date()
@@ -27,8 +32,11 @@ export const UserSchema = z.strictObject({
   id: UserIdSchema,
   firstName: NameSchema,
   lastName: NameSchema,
-  email: z.email(),
-  passwordHash: z.string().min(1),
+  email: EmailSchema,
+  passwordHash: PasswordHashSchema,
+  role: UserRoleSchema,
+  isActive: z.boolean(),
+  tokenVersion: z.number().int().nonnegative(),
   phoneNumber: z.e164(),
   birthDate: BirthDateSchema,
 
@@ -36,6 +44,12 @@ export const UserSchema = z.strictObject({
   lastUpdated: z.iso.datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+export const PublicUserSchema = UserSchema.omit({
+  passwordHash: true,
+  tokenVersion: true,
+});
+export type PublicUser = z.infer<typeof PublicUserSchema>;
 
 export const CreateUserSchema = z
   .strictObject({
