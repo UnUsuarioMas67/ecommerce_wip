@@ -9,6 +9,8 @@ import {
   type Cart,
   type CartItem,
 } from '@ecommerce/schemas';
+import { ownsResource, type AuthPrincipal } from '../lib/ownership.js';
+import { requireAuth } from '../middleware/auth.js';
 import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
@@ -18,41 +20,66 @@ function findCartItems(cartId: string): CartItem[] {
   return [...store.cartItems.values()].filter((item) => item.cartId === cartId);
 }
 
-cartsRouter.post('/', validate({ body: CreateCartSchema }), (req, res) => {
-  const cart: Cart = {
-    id: randomUUID(),
-    userId: req.body.userId ?? null,
-    sessionId: req.body.sessionId ?? null,
-    status: 'active',
-    createdAt: nowIso(),
-    lastUpdated: nowIso(),
-  };
-  store.carts.set(cart.id, cart);
-  res.status(201).json({ cart });
-});
-
-cartsRouter.get('/:id', validate({ params: { id: CartIdSchema } }), (req, res) => {
-  const cart = store.carts.get(req.params.id);
-  if (!cart) {
-    res.status(404).json({ error: 'Cart not found' });
-    return;
+function accessibleCart(cartId: string, auth: AuthPrincipal): Cart | undefined {
+  const cart = store.carts.get(cartId);
+  if (cart === undefined || !ownsResource(auth, cart.userId)) {
+    return undefined;
   }
-  res.json({ cart, items: findCartItems(cart.id) });
-});
+  return cart;
+}
 
-cartsRouter.get('/:id/items', validate({ params: { id: CartIdSchema } }), (req, res) => {
-  if (!store.carts.has(req.params.id)) {
-    res.status(404).json({ error: 'Cart not found' });
-    return;
-  }
-  res.json({ items: findCartItems(req.params.id) });
-});
+cartsRouter.post(
+  '/',
+  requireAuth,
+  validate({ body: CreateCartSchema }),
+  (req, res) => {
+    const now = nowIso();
+    const cart: Cart = {
+      id: randomUUID(),
+      userId: req.auth.userId,
+      status: 'active',
+      createdAt: now,
+      lastUpdated: now,
+    };
+    store.carts.set(cart.id, cart);
+    res.status(201).json({ cart });
+  },
+);
+
+cartsRouter.get(
+  '/:id',
+  requireAuth,
+  validate({ params: { id: CartIdSchema } }),
+  (req, res) => {
+    const cart = accessibleCart(req.params.id, req.auth);
+    if (!cart) {
+      res.status(404).json({ error: 'Cart not found' });
+      return;
+    }
+    res.json({ cart, items: findCartItems(cart.id) });
+  },
+);
+
+cartsRouter.get(
+  '/:id/items',
+  requireAuth,
+  validate({ params: { id: CartIdSchema } }),
+  (req, res) => {
+    const cart = accessibleCart(req.params.id, req.auth);
+    if (!cart) {
+      res.status(404).json({ error: 'Cart not found' });
+      return;
+    }
+    res.json({ items: findCartItems(cart.id) });
+  },
+);
 
 cartsRouter.post(
   '/:id/items',
+  requireAuth,
   validate({ params: { id: CartIdSchema }, body: CreateCartItemSchema }),
   (req, res) => {
-    const cart = store.carts.get(req.params.id);
+    const cart = accessibleCart(req.params.id, req.auth);
     if (!cart) {
       res.status(404).json({ error: 'Cart not found' });
       return;
@@ -100,10 +127,12 @@ cartsRouter.post(
 
 cartsRouter.patch(
   '/:id/items/:itemId',
+  requireAuth,
   validate({ params: { id: CartIdSchema, itemId: CartItemIdSchema }, body: UpdateCartItemSchema }),
   (req, res) => {
+    const cart = accessibleCart(req.params.id, req.auth);
     const item = store.cartItems.get(req.params.itemId);
-    if (!item || item.cartId !== req.params.id) {
+    if (!cart || !item || item.cartId !== cart.id) {
       res.status(404).json({ error: 'Cart item not found' });
       return;
     }
@@ -120,10 +149,12 @@ cartsRouter.patch(
 
 cartsRouter.delete(
   '/:id/items/:itemId',
+  requireAuth,
   validate({ params: { id: CartIdSchema, itemId: CartItemIdSchema } }),
   (req, res) => {
+    const cart = accessibleCart(req.params.id, req.auth);
     const item = store.cartItems.get(req.params.itemId);
-    if (!item || item.cartId !== req.params.id) {
+    if (!cart || !item || item.cartId !== cart.id) {
       res.status(404).json({ error: 'Cart item not found' });
       return;
     }

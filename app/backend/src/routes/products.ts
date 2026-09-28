@@ -5,6 +5,7 @@ import {
   ProductIdSchema,
   type Product,
 } from '@ecommerce/schemas';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
@@ -23,13 +24,19 @@ productsRouter.get('/:id', validate({ params: { id: ProductIdSchema } }), (req, 
   res.json({ product });
 });
 
-productsRouter.post('/', validate({ body: CreateProductSchema }), (req, res) => {
-  const product: Product = {
-    id: randomUUID(),
-    ...req.body,
-    createdAt: nowIso(),
-    lastUpdated: nowIso(),
-  };
-  store.products.set(product.id, product);
-  res.status(201).json({ product });
-});
+productsRouter.post(
+  '/',
+  requireAuth,
+  requireRole('admin'),
+  validate({ body: CreateProductSchema }),
+  (req, res) => {
+    const product: Product = {
+      id: randomUUID(),
+      ...req.body,
+      createdAt: nowIso(),
+      lastUpdated: nowIso(),
+    };
+    store.products.set(product.id, product);
+    res.status(201).json({ product });
+  },
+);

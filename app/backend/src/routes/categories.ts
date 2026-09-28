@@ -6,6 +6,7 @@ import {
   UpdateCategorySchema,
   type Category,
 } from '@ecommerce/schemas';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { store, nowIso } from '../store.js';
 import validate from 'express-zod-safe';
 
@@ -24,20 +25,28 @@ categoriesRouter.get('/:id', validate({ params: { id: CategoryIdSchema } }), (re
   res.json({ category });
 });
 
-categoriesRouter.post('/', validate({ body: CreateCategorySchema }), (req, res) => {
-  const category: Category = {
-    id: randomUUID(),
-    ...req.body,
-    parentId: req.body.parentId ?? null,
-    createdAt: nowIso(),
-    lastUpdated: nowIso(),
-  };
-  store.categories.set(category.id, category);
-  res.status(201).json({ category });
-});
+categoriesRouter.post(
+  '/',
+  requireAuth,
+  requireRole('admin'),
+  validate({ body: CreateCategorySchema }),
+  (req, res) => {
+    const category: Category = {
+      id: randomUUID(),
+      ...req.body,
+      parentId: req.body.parentId ?? null,
+      createdAt: nowIso(),
+      lastUpdated: nowIso(),
+    };
+    store.categories.set(category.id, category);
+    res.status(201).json({ category });
+  },
+);
 
 categoriesRouter.patch(
   '/:id',
+  requireAuth,
+  requireRole('admin'),
   validate({ params: { id: CategoryIdSchema }, body: UpdateCategorySchema }),
   (req, res) => {
     const existing = store.categories.get(req.params.id);
