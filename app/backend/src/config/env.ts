@@ -9,6 +9,10 @@ const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().int().default(3000),
+    DATABASE_URL: z
+      .string()
+      .min(1)
+      .default('postgresql://postgres@localhost:5432/ecommerce'),
     JWT_SECRET: z.string().min(32).optional(),
     ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
@@ -17,7 +21,7 @@ const EnvSchema = z
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== 'production') return;
-    const missing = (['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD'] as const).filter(
+    const missing = (['DATABASE_URL', 'JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD'] as const).filter(
       (key) => !values[key],
     );
     for (const key of missing) {
