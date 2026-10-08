@@ -1,9 +1,11 @@
+import { eq } from 'drizzle-orm';
 import type { RequestHandler } from 'express';
 
 import type { UserRole } from '@ecommerce/schemas';
 
+import { db } from '../db/index.js';
+import { users } from '../db/schema.js';
 import { verifyAccessToken } from '../lib/tokens.js';
-import { store } from '../store.js';
 import type { AuthenticatedRequest } from '../types/express.js';
 
 function bearerToken(header: string | undefined): string | null {
@@ -29,7 +31,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   let tokenVersion: number;
   try {
     const claims = await verifyAccessToken(token);
-    const user = store.users.get(claims.sub);
+    const [user] = await db.select().from(users).where(eq(users.id, claims.sub)).limit(1);
     if (user === undefined || !user.isActive) {
       res.status(401).json({ error: 'Invalid access token', code: 'INVALID_TOKEN' });
       return;

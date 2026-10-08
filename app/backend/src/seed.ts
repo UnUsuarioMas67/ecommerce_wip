@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
-
+import { sql } from 'drizzle-orm';
 import { PasswordSchema, type User } from '@ecommerce/schemas';
 
 import env from './config/env.js';
+import { db } from './db/index.js';
+import { mapUser } from './db/mappers.js';
+import { users } from './db/schema.js';
 import { hashPassword } from './lib/password.js';
-import { nowIso, store } from './store.js';
+import { nowIso } from './lib/time.js';
 
 let seedPromise: Promise<User> | undefined;
 
@@ -26,24 +29,33 @@ async function createAdminUser(): Promise<User> {
   }
 
   const now = nowIso();
-  const user: User = {
-    id: randomUUID(),
-    firstName: 'Bootstrap',
-    lastName: 'Admin',
-    email,
-    passwordHash: await hashPassword(password),
-    role: 'admin',
-    isActive: true,
-    tokenVersion: 0,
-    phoneNumber: '+15550100000',
-    birthDate: '1990-01-01',
-    createdAt: now,
-    lastUpdated: now,
-  };
-
-  store.users.set(user.id, user);
-  store.usersByEmail.set(user.email, user.id);
-  return user;
+  const [row] = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      firstName: 'Bootstrap',
+      lastName: 'Admin',
+      email,
+      passwordHash: await hashPassword(password),
+      role: 'admin',
+      isActive: true,
+      tokenVersion: 0,
+      phoneNumber: '+15550100000',
+      birthDate: '1990-01-01',
+      createdAt: new Date(now),
+      lastUpdated: new Date(now),
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        passwordHash: sql`excluded.password_hash`,
+        role: sql`excluded.role`,
+        isActive: true,
+        lastUpdated: sql`excluded.last_updated`,
+      },
+    })
+    .returning();
+  return mapUser(row);
 }
 
 export function seedAdminUser(): Promise<User> {

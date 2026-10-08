@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { and, eq, isNull } from 'drizzle-orm';
 import dayjs from 'dayjs';
 
 import type {
@@ -11,17 +12,21 @@ import type {
 } from '@ecommerce/schemas';
 
 import env from '../config/env.js';
+import { db } from '../db/index.js';
+import { mapRefreshToken, mapUser } from '../db/mappers.js';
+import { refreshTokens, users, type RefreshTokenRecord } from '../db/schema.js';
 import { AuthError } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
+import { nowIso } from '../lib/time.js';
 import {
   accessTokenLifetimeSeconds,
   generateRefreshToken,
   hashRefreshToken,
   signAccessToken,
 } from '../lib/tokens.js';
-import { nowIso, store, type RefreshTokenRecord } from '../store.js';
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
+const UNIQUE_VIOLATION = '23505';
 
 let dummyHash: Promise<string> | undefined;
 
@@ -35,25 +40,27 @@ export function toPublicUser(user: User): PublicUser {
   return rest;
 }
 
-function createRefreshRecord(
+async function createRefreshRecord(
   userId: UserId,
   familyId: string,
   userAgent: string | null,
-): { record: RefreshTokenRecord; raw: string } {
+): Promise<{ record: RefreshTokenRecord; raw: string }> {
   const { raw, hash } = generateRefreshToken();
-  const record: RefreshTokenRecord = {
-    id: randomUUID(),
-    userId,
-    tokenHash: hash,
-    familyId,
-    expiresAt: dayjs().add(env.REFRESH_TOKEN_TTL_DAYS, 'day').toISOString(),
-    revokedAt: null,
-    replacedById: null,
-    userAgent,
-    createdAt: nowIso(),
-  };
-  store.refreshTokens.set(hash, record);
-  return { record, raw };
+  const [row] = await db
+    .insert(refreshTokens)
+    .values({
+      id: randomUUID(),
+      userId,
+      tokenHash: hash,
+      familyId,
+      expiresAt: new Date(dayjs().add(env.REFRESH_TOKEN_TTL_DAYS, 'day').toISOString()),
+      revokedAt: null,
+      replacedById: null,
+      userAgent,
+      createdAt: new Date(nowIso()),
+    })
+    .returning();
+  return { record: mapRefreshToken(row), raw };
 }
 
 async function issueTokens(
@@ -62,7 +69,7 @@ async function issueTokens(
   familyId: string = randomUUID(),
 ): Promise<{ tokens: TokenResponse; record: RefreshTokenRecord }> {
   const accessToken = await signAccessToken(user);
-  const { record, raw } = createRefreshRecord(user.id, familyId, userAgent);
+  const { record, raw } = await createRefreshRecord(user.id, familyId, userAgent);
   return {
     record,
     tokens: {
@@ -74,41 +81,54 @@ async function issueTokens(
   };
 }
 
-function revokeFamily(familyId: string): void {
-  const now = nowIso();
-  for (const record of store.refreshTokens.values()) {
-    if (record.familyId === familyId && record.revokedAt === null) {
-      record.revokedAt = now;
-    }
-  }
+function revokeFamily(familyId: string): Promise<void> {
+  return db
+    .update(refreshTokens)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(refreshTokens.familyId, familyId), isNull(refreshTokens.revokedAt)))
+    .then(() => undefined);
 }
 
 export async function registerUser(
   input: CreateUserInput,
   userAgent: string | null = null,
 ): Promise<{ user: PublicUser; tokens: TokenResponse }> {
-  if (store.usersByEmail.has(input.email)) {
+  const existing = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, input.email))
+    .limit(1);
+  if (existing.length > 0) {
     throw new AuthError(409, 'EMAIL_TAKEN', 'Email is already registered');
   }
 
   const now = nowIso();
-  const user: User = {
-    id: randomUUID(),
-    firstName: input.firstName,
-    lastName: input.lastName,
-    email: input.email,
-    passwordHash: await hashPassword(input.password),
-    role: 'client',
-    isActive: true,
-    tokenVersion: 0,
-    phoneNumber: input.phoneNumber,
-    birthDate: input.birthDate,
-    createdAt: now,
-    lastUpdated: now,
-  };
-
-  store.users.set(user.id, user);
-  store.usersByEmail.set(user.email, user.id);
+  let user: User;
+  try {
+    const [row] = await db
+      .insert(users)
+      .values({
+        id: randomUUID(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+        role: 'client',
+        isActive: true,
+        tokenVersion: 0,
+        phoneNumber: input.phoneNumber,
+        birthDate: input.birthDate,
+        createdAt: new Date(now),
+        lastUpdated: new Date(now),
+      })
+      .returning();
+    user = mapUser(row);
+  } catch (error) {
+    if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
+      throw new AuthError(409, 'EMAIL_TAKEN', 'Email is already registered');
+    }
+    throw error;
+  }
 
   const { tokens } = await issueTokens(user, userAgent);
   return { user: toPublicUser(user), tokens };
@@ -118,8 +138,12 @@ export async function loginUser(
   input: LoginInput,
   userAgent: string | null = null,
 ): Promise<{ user: PublicUser; tokens: TokenResponse }> {
-  const userId = store.usersByEmail.get(input.email);
-  const user = userId === undefined ? undefined : store.users.get(userId);
+  const [row] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, input.email))
+    .limit(1);
+  const user = row === undefined ? undefined : mapUser(row);
 
   if (user === undefined) {
     await verifyPassword(input.password, await getDummyHash());
@@ -142,34 +166,49 @@ export async function refreshSession(
   raw: string,
   userAgent: string | null = null,
 ): Promise<TokenResponse> {
-  const current = store.refreshTokens.get(hashRefreshToken(raw));
+  const [current] = await db
+    .select()
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, hashRefreshToken(raw)))
+    .limit(1);
+
   if (current === undefined) {
     throw new AuthError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
   }
 
-  if (current.revokedAt !== null) {
-    revokeFamily(current.familyId);
+  const record = mapRefreshToken(current);
+
+  if (record.revokedAt !== null) {
+    await revokeFamily(record.familyId);
     throw new AuthError(401, 'REFRESH_TOKEN_REUSED', 'Refresh token has already been used');
   }
 
-  if (dayjs(current.expiresAt).isBefore(dayjs())) {
+  if (dayjs(record.expiresAt).isBefore(dayjs())) {
     throw new AuthError(401, 'REFRESH_TOKEN_EXPIRED', 'Refresh token has expired');
   }
 
-  const user = store.users.get(current.userId);
+  const [userRow] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, current.userId))
+    .limit(1);
+  const user = userRow === undefined ? undefined : mapUser(userRow);
   if (user === undefined || !user.isActive) {
     throw new AuthError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
   }
 
-  const { tokens, record } = await issueTokens(user, userAgent, current.familyId);
-  current.revokedAt = nowIso();
-  current.replacedById = record.id;
+  const { tokens, record: replacement } = await issueTokens(user, userAgent, record.familyId);
+  await db
+    .update(refreshTokens)
+    .set({ revokedAt: new Date(), replacedById: replacement.id })
+    .where(eq(refreshTokens.id, current.id));
   return tokens;
 }
 
-export function logoutSession(raw: string): void {
-  const record = store.refreshTokens.get(hashRefreshToken(raw));
-  if (record !== undefined && record.revokedAt === null) {
-    record.revokedAt = nowIso();
-  }
+export function logoutSession(raw: string): Promise<void> {
+  return db
+    .update(refreshTokens)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(refreshTokens.tokenHash, hashRefreshToken(raw)), isNull(refreshTokens.revokedAt)))
+    .then(() => undefined);
 }
