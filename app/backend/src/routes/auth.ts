@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { eq } from 'drizzle-orm';
 import rateLimit from 'express-rate-limit';
 import validate from 'express-zod-safe';
 
@@ -8,6 +9,9 @@ import {
   RefreshTokenSchema,
 } from '@ecommerce/schemas';
 
+import { db } from '../db/index.js';
+import { mapUser } from '../db/mappers.js';
+import { users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   loginUser,
@@ -16,7 +20,6 @@ import {
   registerUser,
   toPublicUser,
 } from '../services/auth.js';
-import { store } from '../store.js';
 
 export const authRouter = Router();
 
@@ -57,16 +60,29 @@ authRouter.post(
   },
 );
 
-authRouter.post('/logout', validate({ body: RefreshTokenSchema }), (req, res) => {
-  logoutSession(req.body.refreshToken);
-  res.status(204).end();
+authRouter.post('/logout', validate({ body: RefreshTokenSchema }), async (req, res, next) => {
+  try {
+    await logoutSession(req.body.refreshToken);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 });
 
-authRouter.get('/me', requireAuth, (req, res) => {
-  const user = store.users.get(req.auth.userId);
-  if (user === undefined) {
-    res.status(404).json({ error: 'User not found' });
-    return;
+authRouter.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.auth.userId))
+      .limit(1);
+    const user = row === undefined ? undefined : mapUser(row);
+    if (user === undefined) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({ user: toPublicUser(user) });
+  } catch (error) {
+    next(error);
   }
-  res.json({ user: toPublicUser(user) });
 });

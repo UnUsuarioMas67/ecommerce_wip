@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import {
   CartIdSchema,
   CartItemIdSchema,
@@ -9,30 +10,38 @@ import {
   type Cart,
   type CartItem,
 } from '@ecommerce/schemas';
+import { db } from '../db/index.js';
+import { mapCart, mapCartItem } from '../db/mappers.js';
+import { cartItems, carts, products } from '../db/schema.js';
 import { ownsResource, type AuthPrincipal } from '../lib/ownership.js';
 import { requireAuth } from '../middleware/auth.js';
-import { store, nowIso } from '../store.js';
+import { nowIso } from '../lib/time.js';
 import validate from 'express-zod-safe';
 
 export const cartsRouter = Router();
 
-function findCartItems(cartId: string): CartItem[] {
-  return [...store.cartItems.values()].filter((item) => item.cartId === cartId);
+async function findCartItems(cartId: string): Promise<CartItem[]> {
+  const rows = await db
+    .select()
+    .from(cartItems)
+    .where(eq(cartItems.cartId, cartId))
+    .orderBy(cartItems.createdAt);
+  return rows.map(mapCartItem);
 }
 
-function accessibleCart(cartId: string, auth: AuthPrincipal): Cart | undefined {
-  const cart = store.carts.get(cartId);
+async function accessibleCart(
+  cartId: string,
+  auth: AuthPrincipal,
+): Promise<typeof carts.$inferSelect | undefined> {
+  const [cart] = await db.select().from(carts).where(eq(carts.id, cartId)).limit(1);
   if (cart === undefined || !ownsResource(auth, cart.userId)) {
     return undefined;
   }
   return cart;
 }
 
-cartsRouter.post(
-  '/',
-  requireAuth,
-  validate({ body: CreateCartSchema }),
-  (req, res) => {
+cartsRouter.post('/', requireAuth, validate({ body: CreateCartSchema }), async (req, res, next) => {
+  try {
     const now = nowIso();
     const cart: Cart = {
       id: randomUUID(),
@@ -41,22 +50,34 @@ cartsRouter.post(
       createdAt: now,
       lastUpdated: now,
     };
-    store.carts.set(cart.id, cart);
-    res.status(201).json({ cart });
-  },
-);
+    const [row] = await db.insert(carts).values({
+      id: cart.id,
+      userId: cart.userId,
+      status: cart.status,
+      createdAt: new Date(cart.createdAt),
+      lastUpdated: new Date(cart.lastUpdated),
+    }).returning();
+    res.status(201).json({ cart: mapCart(row) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 cartsRouter.get(
   '/:id',
   requireAuth,
   validate({ params: { id: CartIdSchema } }),
-  (req, res) => {
-    const cart = accessibleCart(req.params.id, req.auth);
-    if (!cart) {
-      res.status(404).json({ error: 'Cart not found' });
-      return;
+  async (req, res, next) => {
+    try {
+      const cart = await accessibleCart(req.params.id, req.auth);
+      if (!cart) {
+        res.status(404).json({ error: 'Cart not found' });
+        return;
+      }
+      res.json({ cart: mapCart(cart), items: await findCartItems(cart.id) });
+    } catch (error) {
+      next(error);
     }
-    res.json({ cart, items: findCartItems(cart.id) });
   },
 );
 
@@ -64,13 +85,17 @@ cartsRouter.get(
   '/:id/items',
   requireAuth,
   validate({ params: { id: CartIdSchema } }),
-  (req, res) => {
-    const cart = accessibleCart(req.params.id, req.auth);
-    if (!cart) {
-      res.status(404).json({ error: 'Cart not found' });
-      return;
+  async (req, res, next) => {
+    try {
+      const cart = await accessibleCart(req.params.id, req.auth);
+      if (!cart) {
+        res.status(404).json({ error: 'Cart not found' });
+        return;
+      }
+      res.json({ items: await findCartItems(cart.id) });
+    } catch (error) {
+      next(error);
     }
-    res.json({ items: findCartItems(cart.id) });
   },
 );
 
@@ -78,50 +103,74 @@ cartsRouter.post(
   '/:id/items',
   requireAuth,
   validate({ params: { id: CartIdSchema }, body: CreateCartItemSchema }),
-  (req, res) => {
-    const cart = accessibleCart(req.params.id, req.auth);
-    if (!cart) {
-      res.status(404).json({ error: 'Cart not found' });
-      return;
-    }
-    if (cart.status !== 'active') {
-      res.status(409).json({ error: 'Cart is already checked out' });
-      return;
-    }
+  async (req, res, next) => {
+    try {
+      const cart = await accessibleCart(req.params.id, req.auth);
+      if (!cart) {
+        res.status(404).json({ error: 'Cart not found' });
+        return;
+      }
+      if (cart.status !== 'active') {
+        res.status(409).json({ error: 'Cart is already checked out' });
+        return;
+      }
 
-    const product = store.products.get(req.body.productId);
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+      const [productRow] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, req.body.productId))
+        .limit(1);
+      if (productRow === undefined) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
 
-    const now = nowIso();
-    const existing = findCartItems(cart.id).find((item) => item.productId === product.id);
+      const now = nowIso();
+      const [existing] = await db
+        .select()
+        .from(cartItems)
+        .where(
+          and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, req.body.productId)),
+        )
+        .limit(1);
 
-    if (existing) {
-      const updated: CartItem = {
-        ...existing,
-        quantity: existing.quantity + req.body.quantity,
+      if (existing !== undefined) {
+        const [row] = await db
+          .update(cartItems)
+          .set({
+            quantity: existing.quantity + req.body.quantity,
+            lastUpdated: new Date(),
+          })
+          .where(eq(cartItems.id, existing.id))
+          .returning();
+        await db.update(carts).set({ lastUpdated: new Date() }).where(eq(carts.id, cart.id));
+        res.json({ item: mapCartItem(row) });
+        return;
+      }
+
+      const item: CartItem = {
+        id: randomUUID(),
+        cartId: cart.id,
+        productId: productRow.id,
+        quantity: req.body.quantity,
+        unitPriceCents: productRow.priceCents,
+        createdAt: now,
         lastUpdated: now,
       };
-      store.cartItems.set(updated.id, updated);
-      store.carts.set(cart.id, { ...cart, lastUpdated: now });
-      res.json({ item: updated });
-      return;
+      const [row] = await db.insert(cartItems).values({
+        id: item.id,
+        cartId: item.cartId,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        createdAt: new Date(item.createdAt),
+        lastUpdated: new Date(item.lastUpdated),
+      }).returning();
+      await db.update(carts).set({ lastUpdated: new Date() }).where(eq(carts.id, cart.id));
+      res.status(201).json({ item: mapCartItem(row) });
+    } catch (error) {
+      next(error);
     }
-
-    const item: CartItem = {
-      id: randomUUID(),
-      cartId: cart.id,
-      productId: product.id,
-      quantity: req.body.quantity,
-      unitPriceCents: product.priceCents,
-      createdAt: now,
-      lastUpdated: now,
-    };
-    store.cartItems.set(item.id, item);
-    store.carts.set(cart.id, { ...cart, lastUpdated: now });
-    res.status(201).json({ item });
   },
 );
 
@@ -129,21 +178,31 @@ cartsRouter.patch(
   '/:id/items/:itemId',
   requireAuth,
   validate({ params: { id: CartIdSchema, itemId: CartItemIdSchema }, body: UpdateCartItemSchema }),
-  (req, res) => {
-    const cart = accessibleCart(req.params.id, req.auth);
-    const item = store.cartItems.get(req.params.itemId);
-    if (!cart || !item || item.cartId !== cart.id) {
-      res.status(404).json({ error: 'Cart item not found' });
-      return;
-    }
+  async (req, res, next) => {
+    try {
+      const cart = await accessibleCart(req.params.id, req.auth);
+      const [item] = await db
+        .select()
+        .from(cartItems)
+        .where(eq(cartItems.id, req.params.itemId))
+        .limit(1);
+      if (!cart || item === undefined || item.cartId !== cart.id) {
+        res.status(404).json({ error: 'Cart item not found' });
+        return;
+      }
 
-    const updated: CartItem = {
-      ...item,
-      ...req.body,
-      lastUpdated: nowIso(),
-    };
-    store.cartItems.set(updated.id, updated);
-    res.json({ item: updated });
+      const [row] = await db
+        .update(cartItems)
+        .set({
+          ...req.body,
+          lastUpdated: new Date(),
+        })
+        .where(eq(cartItems.id, item.id))
+        .returning();
+      res.json({ item: mapCartItem(row) });
+    } catch (error) {
+      next(error);
+    }
   },
 );
 
@@ -151,14 +210,22 @@ cartsRouter.delete(
   '/:id/items/:itemId',
   requireAuth,
   validate({ params: { id: CartIdSchema, itemId: CartItemIdSchema } }),
-  (req, res) => {
-    const cart = accessibleCart(req.params.id, req.auth);
-    const item = store.cartItems.get(req.params.itemId);
-    if (!cart || !item || item.cartId !== cart.id) {
-      res.status(404).json({ error: 'Cart item not found' });
-      return;
+  async (req, res, next) => {
+    try {
+      const cart = await accessibleCart(req.params.id, req.auth);
+      const [item] = await db
+        .select()
+        .from(cartItems)
+        .where(eq(cartItems.id, req.params.itemId))
+        .limit(1);
+      if (!cart || item === undefined || item.cartId !== cart.id) {
+        res.status(404).json({ error: 'Cart item not found' });
+        return;
+      }
+      await db.delete(cartItems).where(eq(cartItems.id, item.id));
+      res.status(204).end();
+    } catch (error) {
+      next(error);
     }
-    store.cartItems.delete(item.id);
-    res.status(204).end();
   },
 );

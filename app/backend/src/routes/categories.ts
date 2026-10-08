@@ -1,45 +1,78 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import {
   CategoryIdSchema,
   CreateCategorySchema,
   UpdateCategorySchema,
   type Category,
 } from '@ecommerce/schemas';
+import { db } from '../db/index.js';
+import { mapCategory } from '../db/mappers.js';
+import { categories } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { store, nowIso } from '../store.js';
+import { nowIso } from '../lib/time.js';
 import validate from 'express-zod-safe';
 
 export const categoriesRouter = Router();
 
-categoriesRouter.get('/', (_req, res) => {
-  res.json({ categories: [...store.categories.values()] });
+categoriesRouter.get('/', async (_req, res, next) => {
+  try {
+    const rows = await db.select().from(categories).orderBy(categories.createdAt);
+    res.json({ categories: rows.map(mapCategory) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-categoriesRouter.get('/:id', validate({ params: { id: CategoryIdSchema } }), (req, res) => {
-  const category = store.categories.get(req.params.id);
-  if (!category) {
-    res.status(404).json({ error: 'Category not found' });
-    return;
-  }
-  res.json({ category });
-});
+categoriesRouter.get(
+  '/:id',
+  validate({ params: { id: CategoryIdSchema } }),
+  async (req, res, next) => {
+    try {
+      const [row] = await db
+        .select()
+        .from(categories)
+        .where(eq(categories.id, req.params.id))
+        .limit(1);
+      if (row === undefined) {
+        res.status(404).json({ error: 'Category not found' });
+        return;
+      }
+      res.json({ category: mapCategory(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 categoriesRouter.post(
   '/',
   requireAuth,
   requireRole('admin'),
   validate({ body: CreateCategorySchema }),
-  (req, res) => {
-    const category: Category = {
-      id: randomUUID(),
-      ...req.body,
-      parentId: req.body.parentId ?? null,
-      createdAt: nowIso(),
-      lastUpdated: nowIso(),
-    };
-    store.categories.set(category.id, category);
-    res.status(201).json({ category });
+  async (req, res, next) => {
+    try {
+      const now = nowIso();
+      const category: Category = {
+        id: randomUUID(),
+        ...req.body,
+        parentId: req.body.parentId ?? null,
+        createdAt: now,
+        lastUpdated: now,
+      };
+      const [row] = await db.insert(categories).values({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        parentId: category.parentId,
+        createdAt: new Date(category.createdAt),
+        lastUpdated: new Date(category.lastUpdated),
+      }).returning();
+      res.status(201).json({ category: mapCategory(row) });
+    } catch (error) {
+      next(error);
+    }
   },
 );
 
@@ -48,20 +81,38 @@ categoriesRouter.patch(
   requireAuth,
   requireRole('admin'),
   validate({ params: { id: CategoryIdSchema }, body: UpdateCategorySchema }),
-  (req, res) => {
-    const existing = store.categories.get(req.params.id);
-    if (!existing) {
-      res.status(404).json({ error: 'Category not found' });
-      return;
-    }
+  async (req, res, next) => {
+    try {
+      const [existing] = await db
+        .select()
+        .from(categories)
+        .where(eq(categories.id, req.params.id))
+        .limit(1);
+      if (existing === undefined) {
+        res.status(404).json({ error: 'Category not found' });
+        return;
+      }
 
-    const updated: Category = {
-      ...existing,
-      ...req.body,
-      parentId: req.body.parentId === undefined ? existing.parentId : (req.body.parentId ?? null),
-      lastUpdated: nowIso(),
-    };
-    store.categories.set(updated.id, updated);
-    res.json({ category: updated });
+      const updated: Category = {
+        ...mapCategory(existing),
+        ...req.body,
+        parentId:
+          req.body.parentId === undefined ? existing.parentId : (req.body.parentId ?? null),
+        lastUpdated: nowIso(),
+      };
+      const [row] = await db
+        .update(categories)
+        .set({
+          name: updated.name,
+          slug: updated.slug,
+          parentId: updated.parentId,
+          lastUpdated: new Date(updated.lastUpdated),
+        })
+        .where(eq(categories.id, existing.id))
+        .returning();
+      res.json({ category: mapCategory(row) });
+    } catch (error) {
+      next(error);
+    }
   },
 );

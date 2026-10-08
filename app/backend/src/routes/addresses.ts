@@ -1,36 +1,55 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import {
   AddressIdSchema,
   CreateAddressSchema,
   UpdateAddressSchema,
   type Address,
 } from '@ecommerce/schemas';
+import { db } from '../db/index.js';
+import { mapAddress } from '../db/mappers.js';
+import { addresses } from '../db/schema.js';
 import { ownsResource } from '../lib/ownership.js';
 import { requireAuth } from '../middleware/auth.js';
-import { store, nowIso } from '../store.js';
+import { nowIso } from '../lib/time.js';
 import validate from 'express-zod-safe';
 
 export const addressesRouter = Router();
 
-addressesRouter.get('/', requireAuth, (req, res) => {
-  const addresses = [...store.addresses.values()].filter(
-    (address) => address.userId === req.auth.userId,
-  );
-  res.json({ addresses });
+addressesRouter.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const rows = await db
+      .select()
+      .from(addresses)
+      .where(eq(addresses.userId, req.auth.userId))
+      .orderBy(addresses.createdAt);
+    res.json({ addresses: rows.map(mapAddress) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 addressesRouter.get(
   '/:id',
   requireAuth,
   validate({ params: { id: AddressIdSchema } }),
-  (req, res) => {
-    const address = store.addresses.get(req.params.id);
-    if (!address || !ownsResource(req.auth, address.userId)) {
-      res.status(404).json({ error: 'Address not found' });
-      return;
+  async (req, res, next) => {
+    try {
+      const [row] = await db
+        .select()
+        .from(addresses)
+        .where(eq(addresses.id, req.params.id))
+        .limit(1);
+      const address = row === undefined ? undefined : mapAddress(row);
+      if (address === undefined || !ownsResource(req.auth, address.userId)) {
+        res.status(404).json({ error: 'Address not found' });
+        return;
+      }
+      res.json({ address });
+    } catch (error) {
+      next(error);
     }
-    res.json({ address });
   },
 );
 
@@ -38,17 +57,36 @@ addressesRouter.post(
   '/',
   requireAuth,
   validate({ body: CreateAddressSchema }),
-  (req, res) => {
-    const now = nowIso();
-    const address: Address = {
-      id: randomUUID(),
-      ...req.body,
-      userId: req.auth.userId,
-      createdAt: now,
-      lastUpdated: now,
-    };
-    store.addresses.set(address.id, address);
-    res.status(201).json({ address });
+  async (req, res, next) => {
+    try {
+      const now = nowIso();
+      const address: Address = {
+        id: randomUUID(),
+        ...req.body,
+        userId: req.auth.userId,
+        createdAt: now,
+        lastUpdated: now,
+      };
+      const [row] = await db.insert(addresses).values({
+        id: address.id,
+        userId: address.userId,
+        label: address.label,
+        recipient: address.recipient,
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        region: address.region,
+        postalCode: address.postalCode,
+        country: address.country,
+        phoneNumber: address.phoneNumber,
+        isDefault: address.isDefault,
+        createdAt: new Date(address.createdAt),
+        lastUpdated: new Date(address.lastUpdated),
+      }).returning();
+      res.status(201).json({ address: mapAddress(row) });
+    } catch (error) {
+      next(error);
+    }
   },
 );
 
@@ -56,20 +94,31 @@ addressesRouter.patch(
   '/:id',
   requireAuth,
   validate({ params: { id: AddressIdSchema }, body: UpdateAddressSchema }),
-  (req, res) => {
-    const existing = store.addresses.get(req.params.id);
-    if (!existing || !ownsResource(req.auth, existing.userId)) {
-      res.status(404).json({ error: 'Address not found' });
-      return;
-    }
+  async (req, res, next) => {
+    try {
+      const [existing] = await db
+        .select()
+        .from(addresses)
+        .where(eq(addresses.id, req.params.id))
+        .limit(1);
+      const address = existing === undefined ? undefined : mapAddress(existing);
+      if (address === undefined || !ownsResource(req.auth, address.userId)) {
+        res.status(404).json({ error: 'Address not found' });
+        return;
+      }
 
-    const updated: Address = {
-      ...existing,
-      ...req.body,
-      userId: existing.userId,
-      lastUpdated: nowIso(),
-    };
-    store.addresses.set(updated.id, updated);
-    res.json({ address: updated });
+      const [row] = await db
+        .update(addresses)
+        .set({
+          ...req.body,
+          userId: existing.userId,
+          lastUpdated: new Date(),
+        })
+        .where(and(eq(addresses.id, existing.id), eq(addresses.userId, existing.userId)))
+        .returning();
+      res.json({ address: mapAddress(row) });
+    } catch (error) {
+      next(error);
+    }
   },
 );
