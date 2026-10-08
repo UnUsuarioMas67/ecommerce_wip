@@ -1,7 +1,9 @@
 import { beforeEach, describe, it, expect } from 'vitest';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import app from '../../src/app.js';
-import { resetStore, store } from '../../src/store.js';
+import { db } from '../../src/db/index.js';
+import { users } from '../../src/db/schema.js';
 import { PublicUserSchema, TokenResponseSchema, type User } from '@ecommerce/schemas';
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
@@ -24,10 +26,21 @@ const seedUser: User = {
   lastUpdated: dayjs().toISOString(),
 };
 
-beforeEach(() => {
-  resetStore();
-  store.users.set(seedUser.id, seedUser);
-  store.usersByEmail.set(seedUser.email, seedUser.id);
+beforeEach(async () => {
+  await db.insert(users).values({
+    id: seedUser.id,
+    firstName: seedUser.firstName,
+    lastName: seedUser.lastName,
+    email: seedUser.email,
+    passwordHash: seedUser.passwordHash,
+    role: seedUser.role,
+    isActive: seedUser.isActive,
+    tokenVersion: seedUser.tokenVersion,
+    phoneNumber: seedUser.phoneNumber,
+    birthDate: seedUser.birthDate,
+    createdAt: new Date(seedUser.createdAt),
+    lastUpdated: new Date(seedUser.lastUpdated),
+  });
 });
 
 describe('/auth/login', () => {
@@ -50,21 +63,21 @@ describe('/auth/login', () => {
 
   it('should return 401 if email or password are incorrect', async () => {
     const response = await request(app).post('/auth/login').send({
-      email: "incorrect@wrong.com",
-      password: "13245",
+      email: 'incorrect@wrong.com',
+      password: '13245',
     });
 
-    expect(response.statusCode).toBe(401)
+    expect(response.statusCode).toBe(401);
   });
 
   it('should return 403 if account is inactive', async () => {
-    seedUser.isActive = false;
+    await db.update(users).set({ isActive: false }).where(eq(users.id, seedUser.id));
 
     const response = await request(app).post('/auth/login').send({
       email: seedUser.email,
       password: seedUserPassword,
     });
-    expect(response.statusCode).toBe(403)
+    expect(response.statusCode).toBe(403);
   });
 
   it('should return 400 if body schema is invalid', async () => {
@@ -72,6 +85,6 @@ describe('/auth/login', () => {
       password: seedUserPassword,
     });
 
-    expect(response.statusCode).toBe(400)
-  })
+    expect(response.statusCode).toBe(400);
+  });
 });
