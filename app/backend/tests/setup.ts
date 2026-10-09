@@ -24,5 +24,6 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await truncateAll();
   await closeDb();
 });
