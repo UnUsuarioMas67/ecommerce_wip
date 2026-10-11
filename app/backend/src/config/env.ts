@@ -18,12 +18,24 @@ const EnvSchema = z
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
     ADMIN_EMAIL: z.email().optional(),
     ADMIN_PASSWORD: z.string().optional(),
+    STRIPE_SECRET_KEY: z.string().min(1).optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+    STRIPE_CURRENCY: z.string().length(3).default('usd'),
+    STRIPE_SUCCESS_URL: z.url().default('http://localhost:3000/checkout/success'),
+    STRIPE_CANCEL_URL: z.url().default('http://localhost:3000/checkout/cancel'),
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== 'production') return;
-    const missing = (['DATABASE_URL', 'JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD'] as const).filter(
-      (key) => !values[key],
-    );
+    const missing = (
+      [
+        'DATABASE_URL',
+        'JWT_SECRET',
+        'ADMIN_EMAIL',
+        'ADMIN_PASSWORD',
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+      ] as const
+    ).filter((key) => !values[key]);
     for (const key of missing) {
       ctx.addIssue({
         code: 'custom',
