@@ -128,7 +128,7 @@ ordersRouter.post(
           totalCents: order.totalCents,
           billingAddress: order.billingAddress,
           shippingAddress: order.shippingAddress,
-          paymentRef: order.paymentRef,
+          paymentRef: null,
           createdAt: new Date(order.createdAt),
           lastUpdated: new Date(order.lastUpdated),
         }).returning();
