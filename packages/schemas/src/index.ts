@@ -13,6 +13,7 @@ export * from './addresses.js';
 export * from './products.js';
 export * from './carts.js';
 export * from './orders.js';
+export * from './payments.js';
 
 export function treeifyError(err: z.ZodError) {
   return z.treeifyError(err);

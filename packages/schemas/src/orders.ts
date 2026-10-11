@@ -31,6 +31,9 @@ export const OrderSchema = z.strictObject({
   billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
   paymentRef: z.string().min(1).max(100).optional(),
+  stripeCheckoutSessionId: z.string().min(1).max(255).optional(),
+  stripePaymentIntentId: z.string().min(1).max(255).optional(),
+  paidAt: z.iso.datetime().optional(),
   createdAt: z.iso.datetime(),
   lastUpdated: z.iso.datetime(),
 });
@@ -53,7 +56,6 @@ export const CreateOrderSchema = z.strictObject({
   shippingAddress: AddressSnapshotSchema,
   taxCents: MoneyCentsSchema.default(0),
   shippingCents: MoneyCentsSchema.default(0),
-  paymentRef: z.string().min(1).max(100).optional(),
 });
 export type CreateOrderInput = z.infer<typeof CreateOrderSchema>;
 
