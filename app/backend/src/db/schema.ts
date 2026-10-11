@@ -135,9 +135,15 @@ export const orders = pgTable(
     billingAddress: jsonb('billing_address').notNull(),
     shippingAddress: jsonb('shipping_address').notNull(),
     paymentRef: text('payment_ref'),
+    stripeCheckoutSessionId: text('stripe_checkout_session_id'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index('orders_user_id_idx').on(t.userId)],
+  (t) => [
+    index('orders_user_id_idx').on(t.userId),
+    uniqueIndex('orders_stripe_checkout_session_id_unique').on(t.stripeCheckoutSessionId),
+  ],
 );
 
 export const orderItems = pgTable(

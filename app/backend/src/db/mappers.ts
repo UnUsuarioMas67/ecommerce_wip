@@ -108,6 +108,9 @@ export function mapOrder(row: typeof s.orders.$inferSelect): Order {
     billingAddress: row.billingAddress as AddressSnapshot,
     shippingAddress: row.shippingAddress as AddressSnapshot,
     paymentRef: row.paymentRef ?? undefined,
+    stripeCheckoutSessionId: row.stripeCheckoutSessionId ?? undefined,
+    stripePaymentIntentId: row.stripePaymentIntentId ?? undefined,
+    paidAt: row.paidAt?.toISOString(),
     createdAt: row.createdAt.toISOString(),
     lastUpdated: row.lastUpdated.toISOString(),
   };
