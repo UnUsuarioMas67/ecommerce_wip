@@ -234,7 +234,6 @@ describe('POST /orders', () => {
         shippingAddress: addressSnapshot,
         taxCents: 500,
         shippingCents: 1000,
-        paymentRef: 'PAY-123',
       });
 
     expect(response.statusCode).toBe(201);
@@ -246,7 +245,7 @@ describe('POST /orders', () => {
     expect(response.body.order.taxCents).toBe(500);
     expect(response.body.order.shippingCents).toBe(1000);
     expect(response.body.order.totalCents).toBe(7000);
-    expect(response.body.order.paymentRef).toBe('PAY-123');
+    expect(response.body.order.paymentRef).toBeUndefined();
     expect(response.body.items).toHaveLength(2);
     for (const item of response.body.items) {
       expect(item.orderId).toBe(response.body.order.id);
