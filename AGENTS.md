@@ -53,7 +53,7 @@ Express 5 + Drizzle ORM + PostgreSQL API.
 - `src/middleware/auth.ts` — auth middleware.
 - `src/lib/stripe.ts` — Stripe client, Checkout Session builder, webhook
   signature verification (pinned API version). Checkout is `mode: 'payment'`;
-  line items itemize order products plus a single `Tax & shipping` adjustment.
+  line items itemize the order products (subtotal only, no tax/shipping).
 - `src/services/auth.ts`, `lib/` (`errors`, `ownership`, `password`, `time`,
   `tokens`), `types/express.d.ts`.
 - `drizzle.config.ts` — dialect postgresql, schema `./src/db/schema.ts`, out
@@ -98,7 +98,7 @@ Payments: creating an order (`POST /orders`) leaves it `pending` and checks out
 the cart. The client then POSTs `{ orderId }` to `/payments/checkout-sessions`
 to obtain a Stripe Checkout `url`. Stripe's signed `checkout.session.completed`
 webhook is the only thing that flips an order to `paid` (idempotent; verifies
-`amount_total === totalCents`). `paymentRef`/`stripePaymentIntentId` are
+`amount_total === subtotalCents`). `paymentRef`/`stripePaymentIntentId` are
 Stripe-managed and never accepted from clients.
 
 ## Conventions
