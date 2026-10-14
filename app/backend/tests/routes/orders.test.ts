@@ -73,7 +73,7 @@ describe('GET /orders/:id', () => {
   it('should return 200 with the order and its items', async () => {
     const user = await createUser();
     const product = await createProduct({ name: 'Widget' });
-    const order = await createOrder(user.id, { subtotalCents: 1000, totalCents: 1000 });
+    const order = await createOrder(user.id, { subtotalCents: 1000 });
     await createOrderItem(order.id, product.id, { name: 'Widget', quantity: 1 });
 
     const response = await request(app)
@@ -217,7 +217,7 @@ describe('POST /orders', () => {
     expect(response.statusCode).toBe(409);
   });
 
-  it('should return 201, compute totals and check out the cart', async () => {
+  it('should return 201, compute the subtotal and check out the cart', async () => {
     const user = await createUser();
     const cart = await createCart(user.id);
     const first = await createProduct({ name: 'First', priceCents: 2000 });
@@ -232,8 +232,6 @@ describe('POST /orders', () => {
         cartId: cart.id,
         billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
-        taxCents: 500,
-        shippingCents: 1000,
       });
 
     expect(response.statusCode).toBe(201);
@@ -242,9 +240,6 @@ describe('POST /orders', () => {
     expect(response.body.order.userId).toBe(user.id);
     expect(response.body.order.status).toBe('pending');
     expect(response.body.order.subtotalCents).toBe(5500);
-    expect(response.body.order.taxCents).toBe(500);
-    expect(response.body.order.shippingCents).toBe(1000);
-    expect(response.body.order.totalCents).toBe(7000);
     expect(response.body.order.paymentRef).toBeUndefined();
     expect(response.body.items).toHaveLength(2);
     for (const item of response.body.items) {

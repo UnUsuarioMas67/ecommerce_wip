@@ -33,9 +33,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     console.warn(`[stripe] session ${session.id} completed with payment_status=${session.payment_status}`);
     return;
   }
-  if (session.amount_total !== orderRow.totalCents) {
+  if (session.amount_total !== orderRow.subtotalCents) {
     console.error(
-      `[stripe] amount mismatch for order ${orderId}: expected ${orderRow.totalCents}, got ${session.amount_total}`,
+      `[stripe] amount mismatch for order ${orderId}: expected ${orderRow.subtotalCents}, got ${session.amount_total}`,
     );
     return;
   }

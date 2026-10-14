@@ -17,10 +17,9 @@ export function getStripe(): Stripe {
 }
 
 export function buildLineItems(
-  order: Pick<Order, 'taxCents' | 'shippingCents'>,
   items: Pick<OrderItem, 'name' | 'quantity' | 'unitPriceCents'>[],
 ): Stripe.Checkout.SessionCreateParams.LineItem[] {
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = items
+  return items
     .filter((item) => item.unitPriceCents > 0)
     .map((item) => ({
       quantity: item.quantity,
@@ -30,20 +29,6 @@ export function buildLineItems(
         product_data: { name: item.name },
       },
     }));
-
-  const adjustmentsCents = order.taxCents + order.shippingCents;
-  if (adjustmentsCents > 0) {
-    lineItems.push({
-      quantity: 1,
-      price_data: {
-        currency: env.STRIPE_CURRENCY,
-        unit_amount: adjustmentsCents,
-        product_data: { name: 'Tax & shipping' },
-      },
-    });
-  }
-
-  return lineItems;
 }
 
 export async function createOrderCheckoutSession(
@@ -55,7 +40,7 @@ export async function createOrderCheckoutSession(
       mode: 'payment',
       client_reference_id: order.id,
       metadata: { orderId: order.id },
-      line_items: buildLineItems(order, items),
+      line_items: buildLineItems(items),
       success_url: `${env.STRIPE_SUCCESS_URL}?orderId=${order.id}`,
       cancel_url: `${env.STRIPE_CANCEL_URL}?orderId=${order.id}`,
     },

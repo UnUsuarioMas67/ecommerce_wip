@@ -25,9 +25,6 @@ export const OrderSchema = z.strictObject({
   userId: UserIdSchema,
   status: OrderStatusSchema,
   subtotalCents: MoneyCentsSchema,
-  taxCents: MoneyCentsSchema,
-  shippingCents: MoneyCentsSchema,
-  totalCents: MoneyCentsSchema,
   billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
   paymentRef: z.string().min(1).max(100).optional(),
@@ -54,8 +51,6 @@ export const CreateOrderSchema = z.strictObject({
   cartId: CartIdSchema,
   billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
-  taxCents: MoneyCentsSchema.default(0),
-  shippingCents: MoneyCentsSchema.default(0),
 });
 export type CreateOrderInput = z.infer<typeof CreateOrderSchema>;
 

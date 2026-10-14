@@ -137,7 +137,7 @@ describe('POST /payments/checkout-sessions', () => {
   it('should return 201 with the session url and persist the session id', async () => {
     const user = await createUser();
     const product = await createProduct({ name: 'Widget', priceCents: 2000 });
-    const order = await createOrder(user.id, { subtotalCents: 2000, totalCents: 2000 });
+    const order = await createOrder(user.id, { subtotalCents: 2000 });
     await createOrderItem(order.id, product.id, { name: 'Widget', quantity: 1 });
     mockedCreateSession.mockResolvedValue(checkoutSession());
 
@@ -184,7 +184,7 @@ describe('POST /payments/webhook', () => {
 
   it('should mark the order paid on checkout.session.completed', async () => {
     const user = await createUser();
-    const order = await createOrder(user.id, { totalCents: 7000 });
+    const order = await createOrder(user.id, { subtotalCents: 7000 });
     const event = completedEvent(order.id);
     mockedConstructEvent.mockReturnValue(event);
 
@@ -202,7 +202,7 @@ describe('POST /payments/webhook', () => {
 
   it('should be idempotent when the same event is delivered twice', async () => {
     const user = await createUser();
-    const order = await createOrder(user.id, { totalCents: 7000 });
+    const order = await createOrder(user.id, { subtotalCents: 7000 });
     const event = completedEvent(order.id);
     mockedConstructEvent.mockReturnValue(event);
 
@@ -218,7 +218,7 @@ describe('POST /payments/webhook', () => {
 
   it('should not mark the order paid when the amount does not match', async () => {
     const user = await createUser();
-    const order = await createOrder(user.id, { totalCents: 7000 });
+    const order = await createOrder(user.id, { subtotalCents: 7000 });
     const event = completedEvent(order.id, { amount_total: 100 });
     mockedConstructEvent.mockReturnValue(event);
 
@@ -231,7 +231,7 @@ describe('POST /payments/webhook', () => {
 
   it('should not mark the order paid when payment_status is not paid', async () => {
     const user = await createUser();
-    const order = await createOrder(user.id, { totalCents: 7000 });
+    const order = await createOrder(user.id, { subtotalCents: 7000 });
     const event = completedEvent(order.id, { payment_status: 'unpaid' });
     mockedConstructEvent.mockReturnValue(event);
 
@@ -244,7 +244,7 @@ describe('POST /payments/webhook', () => {
 
   it('should ignore unrelated event types', async () => {
     const user = await createUser();
-    const order = await createOrder(user.id, { totalCents: 7000 });
+    const order = await createOrder(user.id, { subtotalCents: 7000 });
     const event = { ...completedEvent(order.id), type: 'payment_intent.created' } as Stripe.Event;
     mockedConstructEvent.mockReturnValue(event);
 

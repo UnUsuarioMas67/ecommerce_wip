@@ -94,7 +94,6 @@ ordersRouter.post(
           (sum, item) => sum + item.unitPriceCents * item.quantity,
           0,
         );
-        const totalCents = subtotalCents + req.body.taxCents + req.body.shippingCents;
         const now = nowIso();
 
         const order: Order = {
@@ -103,7 +102,6 @@ ordersRouter.post(
           userId: req.auth.userId,
           status: 'pending',
           subtotalCents,
-          totalCents,
           createdAt: now,
           lastUpdated: now,
         };
@@ -123,9 +121,6 @@ ordersRouter.post(
           userId: order.userId,
           status: order.status,
           subtotalCents: order.subtotalCents,
-          taxCents: order.taxCents,
-          shippingCents: order.shippingCents,
-          totalCents: order.totalCents,
           billingAddress: order.billingAddress,
           shippingAddress: order.shippingAddress,
           paymentRef: null,
