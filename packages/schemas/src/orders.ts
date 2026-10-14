@@ -25,7 +25,6 @@ export const OrderSchema = z.strictObject({
   userId: UserIdSchema,
   status: OrderStatusSchema,
   subtotalCents: MoneyCentsSchema,
-  billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
   paymentRef: z.string().min(1).max(100).optional(),
   stripeCheckoutSessionId: z.string().min(1).max(255).optional(),
@@ -49,7 +48,6 @@ export type OrderItem = z.infer<typeof OrderItemSchema>;
 
 export const CreateOrderSchema = z.strictObject({
   cartId: CartIdSchema,
-  billingAddress: AddressSnapshotSchema,
   shippingAddress: AddressSnapshotSchema,
 });
 export type CreateOrderInput = z.infer<typeof CreateOrderSchema>;

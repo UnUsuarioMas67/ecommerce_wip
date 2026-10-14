@@ -129,7 +129,6 @@ export const orders = pgTable(
     userId: uuid('user_id').notNull(),
     status: orderStatusEnum('status').notNull(),
     subtotalCents: integer('subtotal_cents').notNull(),
-    billingAddress: jsonb('billing_address').notNull(),
     shippingAddress: jsonb('shipping_address').notNull(),
     paymentRef: text('payment_ref'),
     stripeCheckoutSessionId: text('stripe_checkout_session_id'),

@@ -121,7 +121,6 @@ ordersRouter.post(
           userId: order.userId,
           status: order.status,
           subtotalCents: order.subtotalCents,
-          billingAddress: order.billingAddress,
           shippingAddress: order.shippingAddress,
           paymentRef: null,
           createdAt: new Date(order.createdAt),

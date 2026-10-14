@@ -110,7 +110,6 @@ describe('POST /orders', () => {
       .post('/orders')
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -137,7 +136,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: randomUUID(),
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -156,7 +154,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -174,7 +171,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -190,7 +186,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -210,7 +205,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 
@@ -230,7 +224,6 @@ describe('POST /orders', () => {
       .set('Authorization', await authHeader(user))
       .send({
         cartId: cart.id,
-        billingAddress: addressSnapshot,
         shippingAddress: addressSnapshot,
       });
 

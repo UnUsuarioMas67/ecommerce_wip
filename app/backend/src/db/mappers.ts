@@ -102,7 +102,6 @@ export function mapOrder(row: typeof s.orders.$inferSelect): Order {
     userId: row.userId,
     status: row.status,
     subtotalCents: row.subtotalCents,
-    billingAddress: row.billingAddress as AddressSnapshot,
     shippingAddress: row.shippingAddress as AddressSnapshot,
     paymentRef: row.paymentRef ?? undefined,
     stripeCheckoutSessionId: row.stripeCheckoutSessionId ?? undefined,
