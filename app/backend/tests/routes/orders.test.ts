@@ -13,6 +13,7 @@ import {
   addressSnapshot,
   authHeader,
   createAdmin,
+  createAddress,
   createCart,
   createCartItem,
   createOrder,
@@ -245,5 +246,92 @@ describe('POST /orders', () => {
 
     const [storedCart] = await db.select().from(carts).where(eq(carts.id, cart.id)).limit(1);
     expect(storedCart.status).toBe('checkedOut');
+  });
+
+  it('should resolve an owned address id into a shipping snapshot', async () => {
+    const user = await createUser();
+    const cart = await createCart(user.id);
+    const product = await createProduct({ priceCents: 1200 });
+    await createCartItem(cart.id, product.id, { quantity: 1, unitPriceCents: 1200 });
+    const address = await createAddress(user.id, { line2: 'Suite 5' });
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', await authHeader(user))
+      .send({ cartId: cart.id, shippingAddress: address.id });
+
+    expect(response.statusCode).toBe(201);
+    expect(() => OrderWithItemsSchema.parse(response.body)).not.toThrow();
+    expect(response.body.order.shippingAddress).toEqual({
+      recipient: address.recipient,
+      line1: address.line1,
+      line2: 'Suite 5',
+      city: address.city,
+      region: address.region,
+      postalCode: address.postalCode,
+      country: address.country,
+    });
+  });
+
+  it("should return 404 when the shipping address belongs to another user", async () => {
+    const user = await createUser();
+    const other = await createUser();
+    const cart = await createCart(user.id);
+    const product = await createProduct();
+    await createCartItem(cart.id, product.id);
+    const address = await createAddress(other.id);
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', await authHeader(user))
+      .send({ cartId: cart.id, shippingAddress: address.id });
+
+    expect(response.statusCode).toBe(404);
+    const [storedCart] = await db.select().from(carts).where(eq(carts.id, cart.id)).limit(1);
+    expect(storedCart.status).toBe('active');
+  });
+
+  it('should return 404 when the shipping address id does not exist', async () => {
+    const user = await createUser();
+    const cart = await createCart(user.id);
+    const product = await createProduct();
+    await createCartItem(cart.id, product.id);
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', await authHeader(user))
+      .send({ cartId: cart.id, shippingAddress: randomUUID() });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("should allow an admin to use another user's address", async () => {
+    const admin = await createAdmin();
+    const other = await createUser();
+    const cart = await createCart(admin.id);
+    const product = await createProduct();
+    await createCartItem(cart.id, product.id);
+    const address = await createAddress(other.id);
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', await authHeader(admin))
+      .send({ cartId: cart.id, shippingAddress: address.id });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.body.order.shippingAddress.line1).toBe(address.line1);
+  });
+
+  it('should return 400 when the shipping address id is not a uuid', async () => {
+    const user = await createUser();
+    const cart = await createCart(user.id);
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', await authHeader(user))
+      .send({ cartId: cart.id, shippingAddress: 'not-a-uuid' });
+
+    expect(response.statusCode).toBe(400);
+    expect(() => ValidationErrorResponseSchema.parse(response.body)).not.toThrow();
   });
 });

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CartIdSchema } from './carts.js';
 import { ProductIdSchema } from './products.js';
 import { UserIdSchema } from './users.js';
-import { AddressSnapshotSchema } from './addresses.js';
+import { AddressIdSchema, AddressSnapshotSchema } from './addresses.js';
 import { MoneyCentsSchema } from './money.js';
 
 export const OrderIdSchema = z.uuid();
@@ -46,9 +46,12 @@ export const OrderItemSchema = z.strictObject({
 });
 export type OrderItem = z.infer<typeof OrderItemSchema>;
 
+export const ShippingAddressInputSchema = z.union([AddressSnapshotSchema, AddressIdSchema]);
+export type ShippingAddressInput = z.infer<typeof ShippingAddressInputSchema>;
+
 export const CreateOrderSchema = z.strictObject({
   cartId: CartIdSchema,
-  shippingAddress: AddressSnapshotSchema,
+  shippingAddress: ShippingAddressInputSchema,
 });
 export type CreateOrderInput = z.infer<typeof CreateOrderSchema>;
 

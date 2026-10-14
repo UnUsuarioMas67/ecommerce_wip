@@ -96,6 +96,21 @@ export function mapAddress(row: typeof s.addresses.$inferSelect): Address {
   };
 }
 
+export function mapAddressToSnapshot(
+  row: typeof s.addresses.$inferSelect,
+): AddressSnapshot {
+  return {
+    recipient: row.recipient,
+    line1: row.line1,
+    line2: row.line2 ?? undefined,
+    city: row.city,
+    region: row.region,
+    postalCode: row.postalCode,
+    country: row.country,
+    phoneNumber: row.phoneNumber ?? undefined,
+  };
+}
+
 export function mapOrder(row: typeof s.orders.$inferSelect): Order {
   return {
     id: row.id,

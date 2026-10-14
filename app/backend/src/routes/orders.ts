@@ -4,12 +4,13 @@ import { eq } from 'drizzle-orm';
 import {
   CreateOrderSchema,
   OrderIdSchema,
+  type AddressSnapshot,
   type Order,
   type OrderItem,
 } from '@ecommerce/schemas';
 import { db } from '../db/index.js';
-import { mapCartItem, mapOrder, mapOrderItem } from '../db/mappers.js';
-import { cartItems, carts, orderItems, orders, products } from '../db/schema.js';
+import { mapAddressToSnapshot, mapCartItem, mapOrder, mapOrderItem } from '../db/mappers.js';
+import { addresses, cartItems, carts, orderItems, orders, products } from '../db/schema.js';
 import { HttpError } from '../lib/errors.js';
 import { ownsResource } from '../lib/ownership.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -94,14 +95,30 @@ ordersRouter.post(
           (sum, item) => sum + item.unitPriceCents * item.quantity,
           0,
         );
+
+        let shippingAddress: AddressSnapshot;
+        if (typeof req.body.shippingAddress === 'string') {
+          const [addressRow] = await tx
+            .select()
+            .from(addresses)
+            .where(eq(addresses.id, req.body.shippingAddress))
+            .limit(1);
+          if (addressRow === undefined || !ownsResource(req.auth, addressRow.userId)) {
+            throw new HttpError(404, 'Address not found');
+          }
+          shippingAddress = mapAddressToSnapshot(addressRow);
+        } else {
+          shippingAddress = req.body.shippingAddress;
+        }
+
         const now = nowIso();
 
         const order: Order = {
           id: orderId,
-          ...req.body,
           userId: req.auth.userId,
           status: 'pending',
           subtotalCents,
+          shippingAddress,
           createdAt: now,
           lastUpdated: now,
         };
