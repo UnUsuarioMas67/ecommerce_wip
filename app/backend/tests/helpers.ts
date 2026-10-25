@@ -124,10 +124,10 @@ export async function createProduct(overrides: Partial<Product> = {}): Promise<P
     sku: `SKU-${randomUUID()}`,
     priceCents: 1000,
     stock: 10,
-    categoryId: undefined,
+    categoryId: null,
     createdAt: now,
     lastUpdated: now,
-    ...overrides,
+    ...(overrides as Partial<Product>),
   };
 
   await db.insert(products).values({
@@ -137,7 +137,7 @@ export async function createProduct(overrides: Partial<Product> = {}): Promise<P
     description: product.description ?? null,
     priceCents: product.priceCents,
     stock: product.stock,
-    categoryId: product.categoryId ?? null,
+    categoryId: product.categoryId === null ? null : product.categoryId ?? null,
     createdAt: new Date(product.createdAt),
     lastUpdated: new Date(product.lastUpdated),
   });
