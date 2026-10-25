@@ -49,10 +49,10 @@ export function mapProduct(row: typeof s.products.$inferSelect): Product {
     description: row.description ?? undefined,
     priceCents: row.priceCents,
     stock: row.stock,
-    categoryId: row.categoryId ?? undefined,
+    categoryId: row.categoryId,
     createdAt: row.createdAt.toISOString(),
     lastUpdated: row.lastUpdated.toISOString(),
-  };
+  } as Product;
 }
 
 export function mapCart(row: typeof s.carts.$inferSelect): Cart {

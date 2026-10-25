@@ -16,7 +16,7 @@ export const ProductSchema = z.strictObject({
   description: DescriptionSchema.optional(),
   priceCents: MoneyCentsSchema.positive(),
   stock: z.number().int().nonnegative().default(0),
-  categoryId: CategoryIdSchema.nullable().optional(),
+  categoryId: CategoryIdSchema.nullable(),
   createdAt: z.iso.datetime(),
   lastUpdated: z.iso.datetime(),
 });
