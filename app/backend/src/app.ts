@@ -1,7 +1,7 @@
 import express from 'express';
 import { setGlobalOptions } from 'express-zod-safe';
 
-import { AuthError } from './lib/errors.js';
+import { AuthError, HttpError } from './lib/errors.js';
 import { authRouter } from './routes/auth.js';
 import { productsRouter } from './routes/products.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -33,6 +33,10 @@ app.use(
   (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof AuthError) {
       res.status(err.status).json({ error: err.message, code: err.code });
+      return;
+    }
+    if (err instanceof HttpError) {
+      res.status(err.status).json({ error: err.message });
       return;
     }
     console.error(err);

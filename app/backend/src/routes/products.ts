@@ -12,6 +12,8 @@ import { mapProduct } from '../db/mappers.js';
 import { products } from '../db/schema.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { nowIso } from '../lib/time.js';
+import { productImagesRouter } from './product-images.js';
+import { productImagesByProductIds } from '../services/product-images.js';
 import validate from 'express-zod-safe';
 
 export const productsRouter = Router();
@@ -19,7 +21,10 @@ export const productsRouter = Router();
 productsRouter.get('/', async (_req, res, next) => {
   try {
     const rows = await db.select().from(products).orderBy(products.createdAt);
-    res.json({ products: rows.map(mapProduct) });
+    const imagesByProduct = await productImagesByProductIds(rows.map((row) => row.id));
+    res.json({
+      products: rows.map((row) => mapProduct(row, imagesByProduct.get(row.id))),
+    });
   } catch (error) {
     next(error);
   }
@@ -39,7 +44,8 @@ productsRouter.get(
         res.status(404).json({ error: 'Product not found' });
         return;
       }
-      res.json({ product: mapProduct(row) });
+      const imagesByProduct = await productImagesByProductIds([row.id]);
+      res.json({ product: mapProduct(row, imagesByProduct.get(row.id)) });
     } catch (error) {
       next(error);
     }
@@ -134,9 +140,12 @@ productsRouter.patch(
         })
         .where(eq(products.id, existing.id))
         .returning();
-      res.json({ product: mapProduct(row) });
+      const imagesByProduct = await productImagesByProductIds([row.id]);
+      res.json({ product: mapProduct(row, imagesByProduct.get(row.id)) });
     } catch (error) {
       next(error);
     }
   },
 );
+
+productsRouter.use('/:productId/images', productImagesRouter);
