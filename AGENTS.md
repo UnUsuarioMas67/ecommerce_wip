@@ -31,7 +31,10 @@ ecommerce/                 npm workspace root
 Shared Zod v4 validation schemas consumed by the backend and (eventually) the
 frontend. Source in `src/`: `money.ts`, `users.ts`, `categories.ts`,
 `addresses.ts`, `products.ts`, `carts.ts`, `orders.ts`, `payments.ts`; barrel
-is `src/index.ts` (also exports `treeifyError`). Built with `tsc` to `dist/`.
+is `src/index.ts` (also exports `treeifyError`). `products.ts` also defines the
+product image schemas (`ProductImageSchema`, `ProductImagesSchema`,
+`UpdateProductImageSchema`, `UploadProductImagesSchema`) and
+`MAX_PRODUCT_IMAGES` (6). Built with `tsc` to `dist/`.
 
 **Build this package before the backend** — the backend imports schemas from
 `schema`'s `dist/`.
@@ -46,16 +49,20 @@ Express 5 + Drizzle ORM + PostgreSQL API.
   `process.loadEnvFile`. Falls back to a generated `JWT_SECRET` in dev.
 - `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (client), `mappers.ts`.
 - `src/routes/` — `auth`, `products`, `categories`, `addresses`, `carts`,
-  `orders`, `payments`, all mounted in `app.ts`. The Stripe webhook
-  (`POST /payments/webhook`) is mounted with `express.raw({ type:
+  `orders`, `payments`, all mounted in `app.ts`. Product images live in
+  `product-images.ts`, mounted under `/products/:productId/images`. The Stripe
+  webhook (`POST /payments/webhook`) is mounted with `express.raw({ type:
   'application/json' })` **before** the global `express.json()` so the raw body
   survives signature verification.
-- `src/middleware/auth.ts` — auth middleware.
+- `src/middleware/auth.ts` — auth middleware. `src/middleware/upload.ts` —
+  multer memory upload (`images` field, up to 6 files, 5 MB each, JPEG/PNG/WebP).
 - `src/lib/stripe.ts` — Stripe client, Checkout Session builder, webhook
   signature verification (pinned API version). Checkout is `mode: 'payment'`;
   line items itemize the order products (subtotal only, no tax/shipping).
-- `src/services/auth.ts`, `lib/` (`errors`, `ownership`, `password`, `time`,
-  `tokens`), `types/express.d.ts`.
+- `src/lib/supabase.ts` — lazy Supabase client (secret key) for Storage.
+- `src/services/auth.ts`, `src/services/product-images.ts` (upload/remove
+  Storage objects, product image queries), `lib/` (`errors`, `ownership`,
+  `password`, `time`, `tokens`), `types/express.d.ts`.
 - `drizzle.config.ts` — dialect postgresql, schema `./src/db/schema.ts`, out
   `./drizzle/`. Loads `.env` itself.
 - `tests/` — Vitest. `vitest.config.ts` sets `DATABASE_URL` to a separate
@@ -88,11 +95,26 @@ run `npx tsc --noEmit` inside the relevant workspace (`packages/schemas` or
 See `app/backend/.env.example`. Notable: `DATABASE_URL`, `JWT_SECRET` (min 32
 chars; ephemeral in dev if unset), `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`,
 `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-`STRIPE_CURRENCY` (default `usd`), `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`. In
+`STRIPE_CURRENCY` (default `usd`), `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`,
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
+`SUPABASE_PRODUCT_IMAGES_BUCKET` (default `product-images`). In
 `NODE_ENV=production`, `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`,
-`ADMIN_PASSWORD`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` are all
-required (enforced in `env.ts`). The default admin password policy: 8–64 chars
-with upper, lower, digit, and special character.
+`ADMIN_PASSWORD`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_URL`,
+and `SUPABASE_SECRET_KEY` are all required (enforced in `env.ts`). The default
+admin password policy: 8–64 chars with upper, lower, digit, and special
+character.
+
+Product images: `product_images` stores `productId`, public `url`, the Supabase
+`storagePath`, 1-based `position`, and `isPrimary` (partial unique index
+enforces one primary per product). Files are uploaded to the public Supabase
+bucket under `<productId>/<imageId>.<ext>`; uploads/deletes use
+`SUPABASE_SECRET_KEY` (bucket RLS can stay closed to clients) and cleanups use
+`storagePath` directly. `ProductSchema.images` is optional and derived
+at read time: `thumbnailUrl` is the primary image, `galleryUrls` are the rest
+ordered by position. Image endpoints require an admin: `POST /products/:productId/images`
+(multipart `images`, optional `primaryIndex`), `PATCH .../images/:imageId`
+(`position` and/or `isPrimary: true`), `DELETE .../images/:imageId` (promotes the
+next image if the primary is removed).
 
 Payments: creating an order (`POST /orders`) leaves it `pending` and checks out
 the cart. The client then POSTs `{ orderId }` to `/payments/checkout-sessions`
