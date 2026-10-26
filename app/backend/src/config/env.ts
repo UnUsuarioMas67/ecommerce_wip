@@ -23,6 +23,9 @@ const EnvSchema = z
     STRIPE_CURRENCY: z.string().length(3).default('usd'),
     STRIPE_SUCCESS_URL: z.url().default('http://localhost:3000/checkout/success'),
     STRIPE_CANCEL_URL: z.url().default('http://localhost:3000/checkout/cancel'),
+    SUPABASE_URL: z.url().optional(),
+    SUPABASE_SECRET_KEY: z.string().min(1).optional(),
+    SUPABASE_PRODUCT_IMAGES_BUCKET: z.string().min(1).default('product-images'),
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== 'production') return;
@@ -34,6 +37,8 @@ const EnvSchema = z
         'ADMIN_PASSWORD',
         'STRIPE_SECRET_KEY',
         'STRIPE_WEBHOOK_SECRET',
+        'SUPABASE_URL',
+        'SUPABASE_SECRET_KEY',
       ] as const
     ).filter((key) => !values[key]);
     for (const key of missing) {
