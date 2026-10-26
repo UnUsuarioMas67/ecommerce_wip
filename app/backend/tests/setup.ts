@@ -9,6 +9,7 @@ export async function truncateAll(): Promise<void> {
       users,
       categories,
       products,
+      product_images,
       cart_items,
       carts,
       addresses,

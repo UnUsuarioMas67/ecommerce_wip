@@ -10,6 +10,7 @@ import type {
   Order,
   OrderItem,
   Product,
+  ProductImage,
   User,
 } from '@ecommerce/schemas';
 
@@ -21,6 +22,7 @@ import {
   categories,
   orderItems,
   orders,
+  productImages,
   products,
   users,
 } from '../src/db/schema.js';
@@ -143,6 +145,35 @@ export async function createProduct(overrides: Partial<Product> = {}): Promise<P
   });
 
   return product;
+}
+
+export async function createProductImage(
+  productId: string,
+  overrides: Partial<ProductImage> = {},
+): Promise<ProductImage> {
+  const now = dayjs().toISOString();
+  const storagePath = `${productId}/${randomUUID()}.jpg`;
+  const image: ProductImage = {
+    id: randomUUID(),
+    productId,
+    url: `https://test.supabase.co/storage/v1/object/public/product-images/${storagePath}`,
+    position: 1,
+    isPrimary: false,
+    createdAt: now,
+    ...overrides,
+  };
+
+  await db.insert(productImages).values({
+    id: image.id,
+    productId: image.productId,
+    url: image.url,
+    storagePath,
+    position: image.position,
+    isPrimary: image.isPrimary,
+    createdAt: new Date(image.createdAt),
+  });
+
+  return image;
 }
 
 export async function createCart(userId: string, overrides: Partial<Cart> = {}): Promise<Cart> {
