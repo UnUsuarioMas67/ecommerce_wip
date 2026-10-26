@@ -29,6 +29,20 @@
       "when": 1791947512003,
       "tag": "0003_last_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792986418357,
+      "tag": "0004_minor_lifeguard",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792988721809,
+      "tag": "0005_watery_wiccan",
+      "breakpoints": true
     }
   ]
 }
