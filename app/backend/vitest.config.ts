@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 import { getTestDatabaseUrl } from './tests/test-db.js';
 
+try {
+  process.loadEnvFile(new URL('./.env', import.meta.url));
+} catch {}
+
 export default defineConfig({
   test: {
     env: {
