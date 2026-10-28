@@ -47,7 +47,9 @@ Express 5 + Drizzle ORM + PostgreSQL API.
 - `src/app.ts` — builds the Express app, mounts routers, JSON error handler.
 - `src/config/env.ts` — Zod-validated env; loads `app/backend/.env` via
   `process.loadEnvFile`. Falls back to a generated `JWT_SECRET` in dev.
-- `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (client), `mappers.ts`.
+  `DB_POOL_MAX` (default 10) sizes the connection pool.
+- `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (`pg` Pool + Drizzle
+  client, 10s connect timeout), `mappers.ts`.
 - `src/routes/` — `auth`, `products`, `categories`, `addresses`, `carts`,
   `orders`, `payments`, all mounted in `app.ts`. Product images live in
   `product-images.ts`, mounted under `/products/:productId/images`. The Stripe
@@ -64,10 +66,16 @@ Express 5 + Drizzle ORM + PostgreSQL API.
   Storage objects, product image queries), `lib/` (`errors`, `ownership`,
   `password`, `time`, `tokens`), `types/express.d.ts`.
 - `drizzle.config.ts` — dialect postgresql, schema `./src/db/schema.ts`, out
-  `./drizzle/`. Loads `.env` itself.
-- `tests/` — Vitest. `vitest.config.ts` sets `DATABASE_URL` to a separate
-  `ecommerce_test` DB, runs `global-setup.ts` + `setup.ts`, `fileParallelism:
-  false`. Tests live under `tests/routes/` and `tests/lib/`.
+  `./drizzle/`. Loads `.env` itself, throws when `DATABASE_URL` is unset, and
+  logs the target host/database so a migration cannot silently hit the wrong DB.
+- `tests/` — Vitest. `vitest.config.ts` points `DATABASE_URL` at
+  `TEST_DATABASE_URL` (required; see below), runs `global-setup.ts` +
+  `setup.ts`, `fileParallelism: false`. Tests live under `tests/routes/` and
+  `tests/lib/`. `global-setup.ts` applies `drizzle/` to the test database
+  idempotently instead of creating it — hosted Postgres (Supabase) offers no
+  `CREATE DATABASE`. `tests/test-db.ts` refuses to run when the test URL is
+  missing or resolves to the same database as `DATABASE_URL`, because `setup.ts`
+  truncates every table before each test.
 
 Key dependencies: `express@5`, `express-zod-safe`, `drizzle-orm`, `pg`, `zod@4`,
 `jose` (JWT), `dayjs`, `express-rate-limit`, `stripe`. Tests: `vitest`,
@@ -90,19 +98,52 @@ There is **no lint script and no typecheck script** defined. To typecheck,
 run `npx tsc --noEmit` inside the relevant workspace (`packages/schemas` or
 `app/backend`) using its own `tsconfig.json`.
 
+`npm test` requires `TEST_DATABASE_URL`; it does not fall back to
+`DATABASE_URL`. `db:generate` / `db:migrate` / `db:studio` always operate on
+`DATABASE_URL` (the log line printed by `drizzle.config.ts` shows which host).
+
+## Database (Supabase Postgres)
+
+The database is hosted on Supabase; Drizzle + `pg` are the only access path.
+The Supabase Data API (PostgREST) is **not** used by the backend.
+
+- **Connection:** use the project's **Session pooler** URI
+  (`...pooler.supabase.com:5432`, user `postgres.<ref>`), not the direct
+  `db.<ref>.supabase.co` host — the direct host is IPv6-only and fails on many
+  networks. Keep `?uselibpqcompat=true&sslmode=require`: `pg@8` otherwise treats
+  `sslmode=require` as `verify-full` and rejects the Supabase certificate chain.
+  (Alternative: pin the project CA with `sslmode=verify-full&sslrootcert=...`.)
+- **Migrations:** only `drizzle-kit` (`drizzle/` + `__drizzle_migrations`). Do
+  not also run `supabase db push`; never create migrations by hand except with
+  `drizzle-kit generate --custom`.
+- **Privileges:** `drizzle/0006_public_schema_hardening.sql` enables RLS on all
+  app tables and revokes `anon` / `authenticated` grants in `public` (including
+  default privileges for future tables). Every new public table needs its own
+  `ENABLE ROW LEVEL SECURITY` statement — Drizzle cannot model it, so add a
+  custom migration. The app connects as `postgres` (table owner), which bypasses
+  RLS; revoking the Data API roles is what protects `users.password_hash`,
+  `refresh_tokens` and address PII.
+- **Tests:** `TEST_DATABASE_URL` points at a second Supabase project (or a local
+  Postgres offline). The suite truncates every table, hence the guard in
+  `tests/test-db.ts`. Free-tier projects pause after a week of inactivity, so the
+  first test run after a pause needs the project resumed in the dashboard.
+- Free-tier projects also cap pooler clients: keep `DB_POOL_MAX` below the
+  limit shown in the dashboard's connection settings.
+
 ## Environment variables
 
-See `app/backend/.env.example`. Notable: `DATABASE_URL`, `JWT_SECRET` (min 32
-chars; ephemeral in dev if unset), `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`,
+See `app/backend/.env.example`. Notable: `DATABASE_URL` (Supabase session
+pooler), `DB_POOL_MAX` (default 10), `TEST_DATABASE_URL` (required by
+`npm test`), `JWT_SECRET` (min 32 chars; ephemeral in dev if unset),
+`ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CURRENCY` (default `usd`),
+`STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `SUPABASE_PRODUCT_IMAGES_BUCKET` (default
+`product-images`). In `NODE_ENV=production`, `DATABASE_URL`, `JWT_SECRET`,
 `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-`STRIPE_CURRENCY` (default `usd`), `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`,
-`SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
-`SUPABASE_PRODUCT_IMAGES_BUCKET` (default `product-images`). In
-`NODE_ENV=production`, `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`,
-`ADMIN_PASSWORD`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_URL`,
-and `SUPABASE_SECRET_KEY` are all required (enforced in `env.ts`). The default
-admin password policy: 8–64 chars with upper, lower, digit, and special
-character.
+`SUPABASE_URL`, and `SUPABASE_SECRET_KEY` are all required (enforced in
+`env.ts`). The default admin password policy: 8–64 chars with upper, lower,
+digit, and special character.
 
 Product images: `product_images` stores `productId`, public `url`, the Supabase
 `storagePath`, 1-based `position`, and `isPrimary` (partial unique index
