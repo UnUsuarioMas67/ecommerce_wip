@@ -13,6 +13,9 @@ const EnvSchema = z
       .string()
       .min(1)
       .default('postgresql://postgres@localhost:5432/ecommerce'),
+    // Supabase session poolers cap client connections per project, so the pool
+    // size is configurable instead of hard-coded.
+    DB_POOL_MAX: z.coerce.number().int().positive().default(10),
     JWT_SECRET: z.string().min(32).optional(),
     ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
