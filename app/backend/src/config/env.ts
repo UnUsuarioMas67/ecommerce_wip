@@ -1,9 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
-try {
-  process.loadEnvFile(new URL('../../.env', import.meta.url));
-} catch {}
+// This module runs from `src/config/` in dev and from `dist/src/config/` after
+// a build, so the depth to `app/backend/.env` is not fixed. Walk up until the
+// file is found instead of hard-coding a relative path (a wrong path left
+// DATABASE_URL undefined and fell back to a password-less localhost URL).
+function loadBackendEnv(): void {
+  let directory = new URL('.', import.meta.url);
+  for (let depth = 0; depth < 5; depth += 1) {
+    try {
+      process.loadEnvFile(new URL('.env', directory));
+      return;
+    } catch {
+      directory = new URL('../', directory);
+    }
+  }
+}
+
+loadBackendEnv();
 
 const EnvSchema = z
   .object({
