@@ -43,6 +43,13 @@
       "when": 1792988721809,
       "tag": "0005_watery_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793225749648,
+      "tag": "0006_public_schema_hardening",
+      "breakpoints": true
     }
   ]
 }
