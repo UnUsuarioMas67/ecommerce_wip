@@ -46,8 +46,10 @@ Express 5 + Drizzle ORM + PostgreSQL API.
 - `src/index.ts` — entrypoint: seeds an admin user, then listens on `env.PORT`.
 - `src/app.ts` — builds the Express app, mounts routers, JSON error handler.
 - `src/config/env.ts` — Zod-validated env; loads `app/backend/.env` via
-  `process.loadEnvFile`. Falls back to a generated `JWT_SECRET` in dev.
-  `DB_POOL_MAX` (default 10) sizes the connection pool.
+  `process.loadEnvFile`, walking up from the module until the file is found so it
+  works both from `src/config/` and from the compiled `dist/src/config/`. Falls
+  back to a generated `JWT_SECRET` in dev. `DB_POOL_MAX` (default 10) sizes the
+  connection pool.
 - `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (`pg` Pool + Drizzle
   client, 10s connect timeout), `mappers.ts`.
 - `src/routes/` — `auth`, `products`, `categories`, `addresses`, `carts`,
@@ -98,6 +100,10 @@ There is **no lint script and no typecheck script** defined. To typecheck,
 run `npx tsc --noEmit` inside the relevant workspace (`packages/schemas` or
 `app/backend`) using its own `tsconfig.json`.
 
+The backend build cleans `dist/` first and emits into `dist/src/` (its
+`tsconfig.json` includes `tests` and `drizzle.config.ts`), so `main` and
+`npm start` point at `dist/src/index.js` — not `dist/index.js`.
+
 `npm test` requires `TEST_DATABASE_URL`; it does not fall back to
 `DATABASE_URL`. `db:generate` / `db:migrate` / `db:studio` always operate on
 `DATABASE_URL` (the log line printed by `drizzle.config.ts` shows which host).
@@ -105,7 +111,8 @@ run `npx tsc --noEmit` inside the relevant workspace (`packages/schemas` or
 ## Database (Supabase Postgres)
 
 The database is hosted on Supabase; Drizzle + `pg` are the only access path.
-The Supabase Data API (PostgREST) is **not** used by the backend.
+The Supabase Data API (PostgREST) is **not** used by the backend and is disabled
+in both projects; the grants revoked by `0006` are defense in depth.
 
 - **Connection:** use the project's **Session pooler** URI
   (`...pooler.supabase.com:5432`, user `postgres.<ref>`), not the direct
@@ -125,8 +132,10 @@ The Supabase Data API (PostgREST) is **not** used by the backend.
   `refresh_tokens` and address PII.
 - **Tests:** `TEST_DATABASE_URL` points at a second Supabase project (or a local
   Postgres offline). The suite truncates every table, hence the guard in
-  `tests/test-db.ts`. Free-tier projects pause after a week of inactivity, so the
-  first test run after a pause needs the project resumed in the dashboard.
+  `tests/test-db.ts`. `global-setup.ts` provisions the schema there on the first
+  run. Free-tier projects pause after a week of inactivity, so the first test run
+  after a pause needs the project resumed in the dashboard. Expect ~3 minutes
+  against the remote test project (us-west-2) versus ~40 s against local Postgres.
 - Free-tier projects also cap pooler clients: keep `DB_POOL_MAX` below the
   limit shown in the dashboard's connection settings.
 
