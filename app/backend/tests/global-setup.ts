@@ -1,28 +1,26 @@
 import { fileURLToPath } from 'node:url';
-import { Client, Pool } from 'pg';
+import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
 import { getTestDatabaseUrl } from './test-db.js';
 
 export default async function globalSetup(): Promise<void> {
-  const url = new URL(getTestDatabaseUrl());
-  const databaseName = url.pathname.slice(1);
-  const adminUrl = new URL(url.toString());
-  adminUrl.pathname = '/postgres';
-
-  const admin = new Client({ connectionString: adminUrl.toString() });
-  await admin.connect();
-  const existing = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [
-    databaseName,
-  ]);
-  if (existing.rowCount === 0) {
-    await admin.query(`CREATE DATABASE "${databaseName}"`);
+  const pool = new Pool({ connectionString: getTestDatabaseUrl(), max: 1 });
+  try {
+    await pool.query('SELECT 1');
+  } catch (error) {
+    await pool.end();
+    throw new Error(
+      `Could not connect to the test database (${new URL(getTestDatabaseUrl()).host}). Check TEST_DATABASE_URL, the database password, and whether a free Supabase project is paused.`,
+      { cause: error },
+    );
   }
-  await admin.end();
 
-  const pool = new Pool({ connectionString: getTestDatabaseUrl() });
-  const db = drizzle(pool);
-  await migrate(db, { migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) });
+  // Hosted test databases cannot be created on demand (Supabase allows a single
+  // database per project), so the schema is applied idempotently instead.
+  await migrate(drizzle(pool), {
+    migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)),
+  });
   await pool.end();
 }

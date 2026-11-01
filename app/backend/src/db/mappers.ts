@@ -6,6 +6,7 @@ import type {
   Order,
   OrderItem,
   Product,
+  ProductImage,
   User,
   AddressSnapshot,
 } from '@ecommerce/schemas';
@@ -41,8 +42,11 @@ export function mapCategory(row: typeof s.categories.$inferSelect): Category {
   };
 }
 
-export function mapProduct(row: typeof s.products.$inferSelect): Product {
-  return {
+export function mapProduct(
+  row: typeof s.products.$inferSelect,
+  images?: Array<typeof s.productImages.$inferSelect>,
+): Product {
+  const product: Product = {
     id: row.id,
     name: row.name,
     sku: row.sku,
@@ -52,7 +56,35 @@ export function mapProduct(row: typeof s.products.$inferSelect): Product {
     categoryId: row.categoryId,
     createdAt: row.createdAt.toISOString(),
     lastUpdated: row.lastUpdated.toISOString(),
-  } as Product;
+  };
+
+  if (images !== undefined && images.length > 0) {
+    const sorted = [...images].sort(
+      (a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    const thumbnail = sorted.find((image) => image.isPrimary) ?? sorted[0]!;
+    product.images = {
+      thumbnailUrl: thumbnail.url,
+      galleryUrls: sorted
+        .filter((image) => image.id !== thumbnail.id)
+        .map((image) => image.url),
+    };
+  }
+
+  return product;
+}
+
+export function mapProductImage(
+  row: typeof s.productImages.$inferSelect,
+): ProductImage {
+  return {
+    id: row.id,
+    productId: row.productId,
+    url: row.url,
+    position: row.position,
+    isPrimary: row.isPrimary,
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 export function mapCart(row: typeof s.carts.$inferSelect): Cart {

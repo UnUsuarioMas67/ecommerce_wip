@@ -1,9 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
-try {
-  process.loadEnvFile(new URL('../../.env', import.meta.url));
-} catch {}
+// This module runs from `src/config/` in dev and from `dist/src/config/` after
+// a build, so the depth to `app/backend/.env` is not fixed. Walk up until the
+// file is found instead of hard-coding a relative path (a wrong path left
+// DATABASE_URL undefined and fell back to a password-less localhost URL).
+function loadBackendEnv(): void {
+  let directory = new URL('.', import.meta.url);
+  for (let depth = 0; depth < 5; depth += 1) {
+    try {
+      process.loadEnvFile(new URL('.env', directory));
+      return;
+    } catch {
+      directory = new URL('../', directory);
+    }
+  }
+}
+
+loadBackendEnv();
 
 const EnvSchema = z
   .object({
@@ -13,6 +27,9 @@ const EnvSchema = z
       .string()
       .min(1)
       .default('postgresql://postgres@localhost:5432/ecommerce'),
+    // Supabase session poolers cap client connections per project, so the pool
+    // size is configurable instead of hard-coded.
+    DB_POOL_MAX: z.coerce.number().int().positive().default(10),
     JWT_SECRET: z.string().min(32).optional(),
     ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
@@ -23,6 +40,9 @@ const EnvSchema = z
     STRIPE_CURRENCY: z.string().length(3).default('usd'),
     STRIPE_SUCCESS_URL: z.url().default('http://localhost:3000/checkout/success'),
     STRIPE_CANCEL_URL: z.url().default('http://localhost:3000/checkout/cancel'),
+    SUPABASE_URL: z.url().optional(),
+    SUPABASE_SECRET_KEY: z.string().min(1).optional(),
+    SUPABASE_PRODUCT_IMAGES_BUCKET: z.string().min(1).default('product-images'),
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== 'production') return;
@@ -34,6 +54,8 @@ const EnvSchema = z
         'ADMIN_PASSWORD',
         'STRIPE_SECRET_KEY',
         'STRIPE_WEBHOOK_SECRET',
+        'SUPABASE_URL',
+        'SUPABASE_SECRET_KEY',
       ] as const
     ).filter((key) => !values[key]);
     for (const key of missing) {

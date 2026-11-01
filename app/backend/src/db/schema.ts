@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   date,
@@ -73,6 +74,25 @@ export const products = pgTable(
     ...timestamps,
   },
   (t) => [index('products_category_id_idx').on(t.categoryId)],
+);
+
+export const productImages = pgTable(
+  'product_images',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    productId: uuid('product_id').notNull(),
+    url: text('url').notNull(),
+    storagePath: text('storage_path').notNull(),
+    position: integer('position').notNull(),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('product_images_product_id_idx').on(t.productId),
+    uniqueIndex('product_images_product_primary_unique')
+      .on(t.productId)
+      .where(sql`${t.isPrimary}`),
+  ],
 );
 
 export const carts = pgTable(
