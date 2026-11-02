@@ -15,7 +15,7 @@ import env from '../config/env.js';
 import { db } from '../db/index.js';
 import { mapRefreshToken, mapUser } from '../db/mappers.js';
 import { refreshTokens, users, type RefreshTokenRecord } from '../db/schema.js';
-import { AuthError } from '../lib/errors.js';
+import { AuthError, pgErrorCode } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { nowIso } from '../lib/time.js';
 import {
@@ -124,7 +124,7 @@ export async function registerUser(
       .returning();
     user = mapUser(row);
   } catch (error) {
-    if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
+    if (pgErrorCode(error) === UNIQUE_VIOLATION) {
       throw new AuthError(409, 'EMAIL_TAKEN', 'Email is already registered');
     }
     throw error;

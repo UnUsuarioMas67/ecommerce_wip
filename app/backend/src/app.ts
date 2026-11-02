@@ -1,7 +1,7 @@
 import express from 'express';
 import { setGlobalOptions } from 'express-zod-safe';
 
-import { AuthError, HttpError } from './lib/errors.js';
+import { AuthError, HttpError, pgErrorCode } from './lib/errors.js';
 import { authRouter } from './routes/auth.js';
 import { productsRouter } from './routes/products.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -37,6 +37,10 @@ app.use(
     }
     if (err instanceof HttpError) {
       res.status(err.status).json({ error: err.message });
+      return;
+    }
+    if (pgErrorCode(err) === '23503') {
+      res.status(409).json({ error: 'Resource is still referenced by other records' });
       return;
     }
     console.error(err);
