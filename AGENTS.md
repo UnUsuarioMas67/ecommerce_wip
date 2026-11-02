@@ -130,6 +130,16 @@ in both projects; the grants revoked by `0006` are defense in depth.
   custom migration. The app connects as `postgres` (table owner), which bypasses
   RLS; revoking the Data API roles is what protects `users.password_hash`,
   `refresh_tokens` and address PII.
+- **Foreign keys:** every relation is a real FK (`drizzle/0007_*`). Deleting a
+  user cascades to `carts`, `cart_items`, `addresses` and `refresh_tokens` but is
+  blocked by `orders` (`restrict`). Deleting a product cascades to
+  `product_images` and `cart_items` (it disappears from live carts) but is blocked
+  by `order_items` (`restrict`), which keeps `name`/`unit_price_cents` history
+  intact. `products.category_id` and `categories.parent_id` are `set null`;
+  `refresh_tokens.replaced_by_id` is a self-FK with `set null`. Keep an index on
+  any new FK column, and note that a product delete only removes image rows —
+  Storage objects must be cleaned up via `removeProductImageObjects` first.
+  `app.ts` maps Postgres `23503` to `409`.
 - **Tests:** `TEST_DATABASE_URL` points at a second Supabase project (or a local
   Postgres offline). The suite truncates every table, hence the guard in
   `tests/test-db.ts`. `global-setup.ts` provisions the schema there on the first
