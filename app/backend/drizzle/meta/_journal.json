@@ -50,6 +50,13 @@
       "when": 1793225749648,
       "tag": "0006_public_schema_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793661356860,
+      "tag": "0007_nifty_maggott",
+      "breakpoints": true
     }
   ]
 }
