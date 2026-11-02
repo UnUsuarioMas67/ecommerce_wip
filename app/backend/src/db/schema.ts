@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -52,7 +53,9 @@ export const categories = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
-    parentId: uuid('parent_id'),
+    parentId: uuid('parent_id').references((): AnyPgColumn => categories.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps,
   },
   (t) => [
@@ -70,7 +73,7 @@ export const products = pgTable(
     description: text('description'),
     priceCents: integer('price_cents').notNull(),
     stock: integer('stock').notNull(),
-    categoryId: uuid('category_id'),
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
     ...timestamps,
   },
   (t) => [index('products_category_id_idx').on(t.categoryId)],
@@ -80,7 +83,9 @@ export const productImages = pgTable(
   'product_images',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    productId: uuid('product_id').notNull(),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
     url: text('url').notNull(),
     storagePath: text('storage_path').notNull(),
     position: integer('position').notNull(),
@@ -99,7 +104,9 @@ export const carts = pgTable(
   'carts',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     status: cartStatusEnum('status').notNull(),
     ...timestamps,
   },
@@ -110,8 +117,12 @@ export const cartItems = pgTable(
   'cart_items',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    cartId: uuid('cart_id').notNull(),
-    productId: uuid('product_id').notNull(),
+    cartId: uuid('cart_id')
+      .notNull()
+      .references(() => carts.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
     quantity: integer('quantity').notNull(),
     unitPriceCents: integer('unit_price_cents').notNull(),
     ...timestamps,
@@ -119,6 +130,7 @@ export const cartItems = pgTable(
   (t) => [
     uniqueIndex('cart_items_cart_product_unique').on(t.cartId, t.productId),
     index('cart_items_cart_id_idx').on(t.cartId),
+    index('cart_items_product_id_idx').on(t.productId),
   ],
 );
 
@@ -126,7 +138,9 @@ export const addresses = pgTable(
   'addresses',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     label: text('label').notNull(),
     recipient: text('recipient').notNull(),
     line1: text('line1').notNull(),
@@ -146,7 +160,9 @@ export const orders = pgTable(
   'orders',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
     status: orderStatusEnum('status').notNull(),
     subtotalCents: integer('subtotal_cents').notNull(),
     shippingAddress: jsonb('shipping_address').notNull(),
@@ -166,26 +182,37 @@ export const orderItems = pgTable(
   'order_items',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    orderId: uuid('order_id').notNull(),
-    productId: uuid('product_id').notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'restrict' }),
     name: text('name').notNull(),
     quantity: integer('quantity').notNull(),
     unitPriceCents: integer('unit_price_cents').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('order_items_order_id_idx').on(t.orderId)],
+  (t) => [
+    index('order_items_order_id_idx').on(t.orderId),
+    index('order_items_product_id_idx').on(t.productId),
+  ],
 );
 
 export const refreshTokens = pgTable(
   'refresh_tokens',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     tokenHash: text('token_hash').notNull(),
     familyId: text('family_id').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    replacedById: uuid('replaced_by_id'),
+    replacedById: uuid('replaced_by_id').references((): AnyPgColumn => refreshTokens.id, {
+      onDelete: 'set null',
+    }),
     userAgent: text('user_agent'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -193,6 +220,7 @@ export const refreshTokens = pgTable(
     uniqueIndex('refresh_tokens_token_hash_unique').on(t.tokenHash),
     index('refresh_tokens_family_id_idx').on(t.familyId),
     index('refresh_tokens_user_id_idx').on(t.userId),
+    index('refresh_tokens_replaced_by_id_idx').on(t.replacedById),
   ],
 );
 

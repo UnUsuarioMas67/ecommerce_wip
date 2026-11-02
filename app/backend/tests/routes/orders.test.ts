@@ -194,7 +194,7 @@ describe('POST /orders', () => {
     expect(response.body.error).toBe('Cart is empty');
   });
 
-  it('should return 409 when a cart item references a product that no longer exists', async () => {
+  it('should drop the cart line when its product is deleted', async () => {
     const user = await createUser();
     const cart = await createCart(user.id);
     const product = await createProduct();
@@ -209,7 +209,8 @@ describe('POST /orders', () => {
         shippingAddress: addressSnapshot,
       });
 
-    expect(response.statusCode).toBe(409);
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBe('Cart is empty');
   });
 
   it('should return 201, compute the subtotal and check out the cart', async () => {

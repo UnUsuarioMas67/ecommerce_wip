@@ -337,8 +337,9 @@ describe('PATCH /carts/:id/items/:itemId', () => {
 
   it('should return 404 when the cart does not exist', async () => {
     const user = await createUser();
+    const cart = await createCart(user.id);
     const product = await createProduct();
-    const item = await createCartItem(randomUUID(), product.id);
+    const item = await createCartItem(cart.id, product.id);
 
     const response = await request(app)
       .patch(`/carts/${randomUUID()}/items/${item.id}`)
@@ -419,8 +420,9 @@ describe('DELETE /carts/:id/items/:itemId', () => {
 
   it('should return 404 when the cart does not exist', async () => {
     const user = await createUser();
+    const cart = await createCart(user.id);
     const product = await createProduct();
-    const item = await createCartItem(randomUUID(), product.id);
+    const item = await createCartItem(cart.id, product.id);
 
     const response = await request(app)
       .delete(`/carts/${randomUUID()}/items/${item.id}`)
