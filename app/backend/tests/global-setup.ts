@@ -6,13 +6,14 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { getTestDatabaseUrl } from './test-db.js';
 
 export default async function globalSetup(): Promise<void> {
-  const pool = new Pool({ connectionString: getTestDatabaseUrl(), max: 1 });
+  const databaseUrl = getTestDatabaseUrl();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     await pool.query('SELECT 1');
   } catch (error) {
     await pool.end();
     throw new Error(
-      `Could not connect to the test database (${new URL(getTestDatabaseUrl()).host}). Check TEST_DATABASE_URL, the database password, and whether a free Supabase project is paused.`,
+      `Could not connect to the test database (${new URL(databaseUrl).host}). Check DATABASE_URL in .env.test, the database password, and whether a free Supabase project is paused.`,
       { cause: error },
     );
   }

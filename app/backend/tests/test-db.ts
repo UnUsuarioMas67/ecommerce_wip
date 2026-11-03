@@ -1,22 +1,35 @@
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+
 // Tests truncate every table between cases, so they must never run against the
-// database the app uses. They point at a dedicated database instead: a second
-// Supabase project (or a local Postgres when working offline).
+// database the app uses. `vitest.config.ts` loads `.env.test`; this module
+// refuses to run when DATABASE_URL is missing or matches `.env.development`.
 export function getTestDatabaseUrl(): string {
-  const testUrl = process.env.TEST_DATABASE_URL;
+  const testUrl = process.env.DATABASE_URL;
   if (!testUrl) {
     throw new Error(
-      'TEST_DATABASE_URL is not set. Point it at the dedicated test database (see .env.example); tests truncate all tables and will not fall back to DATABASE_URL.',
+      'DATABASE_URL is not set. Point it at the dedicated test database in app/backend/.env.test (see .env.example); tests truncate all tables.',
     );
   }
 
-  const devUrl = process.env.DATABASE_URL;
+  const devUrl = readDevelopmentDatabaseUrl();
   if (devUrl && isSameDatabase(testUrl, devUrl)) {
     throw new Error(
-      'TEST_DATABASE_URL points at the same database as DATABASE_URL. Refusing to run tests that truncate every table.',
+      'DATABASE_URL in .env.test points at the same database as .env.development. Refusing to run tests that truncate every table.',
     );
   }
 
   return testUrl;
+}
+
+function readDevelopmentDatabaseUrl(): string | undefined {
+  try {
+    return parseEnv(
+      readFileSync(new URL('../.env.development', import.meta.url), 'utf8'),
+    ).DATABASE_URL;
+  } catch {
+    return undefined;
+  }
 }
 
 // Supabase projects share a pooler host per region; the project ref lives in the

@@ -1,20 +1,30 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
-// This module runs from `src/config/` in dev and from `dist/src/config/` after
-// a build, so the depth to `app/backend/.env` is not fixed. Walk up until the
-// file is found instead of hard-coding a relative path (a wrong path left
-// DATABASE_URL undefined and fell back to a password-less localhost URL).
+// `NODE_ENV` selects the file: `.env.development` by default, `.env.test` under
+// Vitest, `.env.production` in production. This module runs from `src/config/`
+// in dev and from `dist/src/config/` after a build, so the depth to
+// `app/backend/` is not fixed. Walk up until the file is found instead of
+// hard-coding a relative path (a wrong path left DATABASE_URL undefined and
+// fell back to a password-less localhost URL).
+const NODE_ENV = z
+  .enum(['development', 'production', 'test'])
+  .default('development')
+  .parse(process.env.NODE_ENV);
+
 function loadBackendEnv(): void {
+  const fileName = `.env.${NODE_ENV}`;
   let directory = new URL('.', import.meta.url);
   for (let depth = 0; depth < 5; depth += 1) {
     try {
-      process.loadEnvFile(new URL('.env', directory));
-      return;
+      process.loadEnvFile(new URL(fileName, directory));
+      break;
     } catch {
       directory = new URL('../', directory);
     }
   }
+
+  process.env.NODE_ENV = NODE_ENV;
 }
 
 loadBackendEnv();

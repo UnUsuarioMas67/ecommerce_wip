@@ -1,13 +1,17 @@
 import { defineConfig } from 'drizzle-kit';
 
+// Keep this in sync with src/config/env.ts: NODE_ENV selects the env file,
+// defaulting to development when it is unset.
+const nodeEnv = process.env.NODE_ENV ?? 'development';
+
 try {
-  process.loadEnvFile(new URL('./.env', import.meta.url));
+  process.loadEnvFile(new URL(`./.env.${nodeEnv}`, import.meta.url));
 } catch {}
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error(
-    'DATABASE_URL is not set. Copy .env.example to .env and point it at the Supabase session pooler.',
+    `DATABASE_URL is not set. Copy .env.example to .env.${nodeEnv} and point it at the Supabase session pooler.`,
   );
 }
 

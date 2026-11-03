@@ -45,11 +45,13 @@ Express 5 + Drizzle ORM + PostgreSQL API.
 
 - `src/index.ts` — entrypoint: seeds an admin user, then listens on `env.PORT`.
 - `src/app.ts` — builds the Express app, mounts routers, JSON error handler.
-- `src/config/env.ts` — Zod-validated env; loads `app/backend/.env` via
+- `src/config/env.ts` — Zod-validated env; loads
+  `app/backend/.env.<NODE_ENV>` (`development` when unset) via
   `process.loadEnvFile`, walking up from the module until the file is found so it
-  works both from `src/config/` and from the compiled `dist/src/config/`. Falls
-  back to a generated `JWT_SECRET` in dev. `DB_POOL_MAX` (default 10) sizes the
-  connection pool.
+  works both from `src/config/` and from the compiled `dist/src/config/`. The
+  file cannot override `NODE_ENV`, which is set by the npm scripts via
+  `cross-env`. Falls back to a generated `JWT_SECRET` in dev. `DB_POOL_MAX`
+  (default 10) sizes the connection pool.
 - `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (`pg` Pool + Drizzle
   client, 10s connect timeout), `mappers.ts`.
 - `src/routes/` — `auth`, `products`, `categories`, `addresses`, `carts`,
@@ -68,16 +70,17 @@ Express 5 + Drizzle ORM + PostgreSQL API.
   Storage objects, product image queries), `lib/` (`errors`, `ownership`,
   `password`, `time`, `tokens`), `types/express.d.ts`.
 - `drizzle.config.ts` — dialect postgresql, schema `./src/db/schema.ts`, out
-  `./drizzle/`. Loads `.env` itself, throws when `DATABASE_URL` is unset, and
-  logs the target host/database so a migration cannot silently hit the wrong DB.
-- `tests/` — Vitest. `vitest.config.ts` points `DATABASE_URL` at
-  `TEST_DATABASE_URL` (required; see below), runs `global-setup.ts` +
-  `setup.ts`, `fileParallelism: false`. Tests live under `tests/routes/` and
-  `tests/lib/`. `global-setup.ts` applies `drizzle/` to the test database
-  idempotently instead of creating it — hosted Postgres (Supabase) offers no
-  `CREATE DATABASE`. `tests/test-db.ts` refuses to run when the test URL is
-  missing or resolves to the same database as `DATABASE_URL`, because `setup.ts`
-  truncates every table before each test.
+  `./drizzle/`. Loads `.env.<NODE_ENV>` itself, throws when `DATABASE_URL` is
+  unset, and logs the target host/database so a migration cannot silently hit the
+  wrong DB.
+- `tests/` — Vitest. `vitest.config.ts` loads `.env.test` and points
+  `DATABASE_URL` at it, runs `global-setup.ts` + `setup.ts`,
+  `fileParallelism: false`. Tests live under `tests/routes/` and `tests/lib/`.
+  `global-setup.ts` applies `drizzle/` to the test database idempotently instead
+  of creating it — hosted Postgres (Supabase) offers no `CREATE DATABASE`.
+  `tests/test-db.ts` refuses to run when `DATABASE_URL` is missing or matches
+  the one in `.env.development`, because `setup.ts` truncates every table before
+  each test.
 
 Key dependencies: `express@5`, `express-zod-safe`, `drizzle-orm`, `pg`, `zod@4`,
 `jose` (JWT), `dayjs`, `express-rate-limit`, `stripe`. Tests: `vitest`,
@@ -87,10 +90,10 @@ Key dependencies: `express@5`, `express-zod-safe`, `drizzle-orm`, `pg`, `zod@4`,
 
 ```powershell
 npm run build          # builds schemas, then backend
-npm run dev            # tsx watch backend
+npm run dev            # cross-env NODE_ENV=development, tsx watch backend
 
 # per-package (use -w)
-npm run test -w @ecommerce/backend
+npm run test -w @ecommerce/backend   # cross-env NODE_ENV=test, loads .env.test
 npm run db:generate -w @ecommerce/backend
 npm run db:migrate -w @ecommerce/backend
 npm run db:studio -w @ecommerce/backend
@@ -104,9 +107,11 @@ The backend build cleans `dist/` first and emits into `dist/src/` (its
 `tsconfig.json` includes `tests` and `drizzle.config.ts`), so `main` and
 `npm start` point at `dist/src/index.js` — not `dist/index.js`.
 
-`npm test` requires `TEST_DATABASE_URL`; it does not fall back to
-`DATABASE_URL`. `db:generate` / `db:migrate` / `db:studio` always operate on
-`DATABASE_URL` (the log line printed by `drizzle.config.ts` shows which host).
+`npm test` loads `.env.test`; its `DATABASE_URL` must point at the dedicated test
+database and does not fall back to `.env.development`. `db:generate` /
+`db:migrate` / `db:studio` load `.env.<NODE_ENV>` (default `.env.development`)
+and operate on that file's `DATABASE_URL` (the log line printed by
+`drizzle.config.ts` shows which host).
 
 ## Database (Supabase Postgres)
 
@@ -140,8 +145,8 @@ in both projects; the grants revoked by `0006` are defense in depth.
   any new FK column, and note that a product delete only removes image rows —
   Storage objects must be cleaned up via `removeProductImageObjects` first.
   `app.ts` maps Postgres `23503` to `409`.
-- **Tests:** `TEST_DATABASE_URL` points at a second Supabase project (or a local
-  Postgres offline). The suite truncates every table, hence the guard in
+- **Tests:** `.env.test`'s `DATABASE_URL` points at a second Supabase project (or
+  a local Postgres offline). The suite truncates every table, hence the guard in
   `tests/test-db.ts`. `global-setup.ts` provisions the schema there on the first
   run. Free-tier projects pause after a week of inactivity, so the first test run
   after a pause needs the project resumed in the dashboard. Expect ~3 minutes
@@ -151,9 +156,10 @@ in both projects; the grants revoked by `0006` are defense in depth.
 
 ## Environment variables
 
-See `app/backend/.env.example`. Notable: `DATABASE_URL` (Supabase session
-pooler), `DB_POOL_MAX` (default 10), `TEST_DATABASE_URL` (required by
-`npm test`), `JWT_SECRET` (min 32 chars; ephemeral in dev if unset),
+See `app/backend/.env.example`; copy it to `.env.development` for the app and
+`.env.test` for Vitest. Notable: `DATABASE_URL` (Supabase session pooler; the
+`.env.test` copy must target the dedicated test database), `DB_POOL_MAX`
+(default 10), `JWT_SECRET` (min 32 chars; ephemeral in dev if unset),
 `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CURRENCY` (default `usd`),
 `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `SUPABASE_URL`,
