@@ -13,7 +13,9 @@ session — keep it accurate so agents do not have to re-explore the tree.
 - Node.js >= 20 (uses `process.loadEnvFile`).
 - Package manager: **npm** (npm workspaces).
 - Everything is **ESM** (`"type": "module"`). Relative imports must use the
-  `.js` extension (NodeNext resolution).
+  `.js` extension (NodeNext resolution) in `packages/schemas` and
+  `app/backend`. The Vite app (`app/frontend`) is the exception: it overrides
+  `moduleResolution` to `bundler`, so its imports are extensionless.
 
 ## Layout
 
@@ -23,7 +25,7 @@ ecommerce/                 npm workspace root
   tsconfig.base.json       shared strict TS config (ES2022, NodeNext, verbatimModuleSyntax)
   packages/schemas/        @ecommerce/schemas  — shared Zod schemas (see below)
   app/backend/             @ecommerce/backend  — Express 5 API
-  app/frontend/            currently EMPTY (no frontend yet)
+  app/frontend/            @ecommerce/frontend — React 19 + Vite + React Query + Tailwind 4
 ```
 
 ### packages/schemas (`@ecommerce/schemas`)
@@ -86,22 +88,58 @@ Key dependencies: `express@5`, `express-zod-safe`, `drizzle-orm`, `pg`, `zod@4`,
 `jose` (JWT), `dayjs`, `express-rate-limit`, `stripe`. Tests: `vitest`,
 `supertest`.
 
+### app/frontend (`@ecommerce/frontend`)
+
+React 19 + Vite 8 + TanStack React Query 5 + Tailwind CSS 4 (`@tailwindcss/vite`
+plugin, no `tailwind.config.js` — theme lives in `src/index.css` under
+`@theme`). Not started by `npm run dev`; run it separately.
+
+- `src/lib/session.ts` — the signed-in session (`user` + token pair) as a tiny
+  external store persisted in `localStorage` under `ecommerce.session`.
+  `useSyncExternalStore` consumes it; tokens are rotated in place so the cached
+  user survives a refresh. **Not** httpOnly cookies — a deliberate placeholder
+  trade-off; the refresh token is readable by JS.
+- `src/lib/api.ts` — `apiFetch` wrapper over `fetch` (`VITE_API_BASE_URL`,
+  default `/api`). Adds the bearer token, and on `401` refreshes once
+  (single-flight) and replays the request. A failed refresh clears the session,
+  which returns the UI to the login page. Throws `ApiError` (`status`, `code`,
+  and `message` taken from the API's `{ error, code }` body).
+- `src/features/auth/` — `api.ts` (`login`, `fetchCurrentUser`, `logout`) and
+  `use-auth.ts` (`useSession`, `useMe`, `useLogin`, `useLogout`). Login seeds the
+  `['auth','me']` cache with the response user, so the name renders before the
+  background `GET /auth/me` revalidation finishes.
+- `src/pages/` — `LoginPage` (email/password against `POST /auth/login`) and
+  `HomePage` (placeholder shell showing the signed-in user's name, role and
+  email, plus sign out). `App.tsx` switches between them on session presence —
+  no router yet.
+- `vite.config.ts` — dev server on `:5173`, proxying `/api/*` to
+  `VITE_API_PROXY_TARGET` (default `http://localhost:3000`) and stripping the
+  `/api` prefix. The backend has **no CORS middleware**, so the proxy (not an
+  `Access-Control-Allow-Origin` header) is what makes dev work; production needs
+  the same same-origin/reverse-proxy arrangement.
+- API types are imported **type-only** from `@ecommerce/schemas`, so the frontend
+  tracks the backend contract without pulling Zod into the bundle — which means
+  `packages/schemas` must be built before typechecking/building the frontend.
+
 ## Commands (run from repo root unless noted)
 
 ```powershell
-npm run build          # builds schemas, then backend
+npm run build          # builds schemas, then backend, then frontend
 npm run dev            # cross-env NODE_ENV=development, tsx watch backend
+npm run dev:frontend   # vite dev server on :5173 (run alongside `npm run dev`)
 
 # per-package (use -w)
 npm run test -w @ecommerce/backend   # cross-env NODE_ENV=test, loads .env.test
 npm run db:generate -w @ecommerce/backend
 npm run db:migrate -w @ecommerce/backend
 npm run db:studio -w @ecommerce/backend
+npm run typecheck -w @ecommerce/frontend
 ```
 
-There is **no lint script and no typecheck script** defined. To typecheck,
-run `npx tsc --noEmit` inside the relevant workspace (`packages/schemas` or
-`app/backend`) using its own `tsconfig.json`.
+There is **no lint script** defined. `packages/schemas` and `app/backend` have no
+typecheck script either: run `npx tsc --noEmit` inside the workspace using its
+own `tsconfig.json`. `app/frontend` does have `npm run typecheck -w
+@ecommerce/frontend` (its build runs the same check first).
 
 The backend build cleans `dist/` first and emits into `dist/src/` (its
 `tsconfig.json` includes `tests` and `drizzle.config.ts`), so `main` and
@@ -169,6 +207,11 @@ See `app/backend/.env.example`; copy it to `.env.development` for the app and
 `SUPABASE_URL`, and `SUPABASE_SECRET_KEY` are all required (enforced in
 `env.ts`). The default admin password policy: 8–64 chars with upper, lower,
 digit, and special character.
+
+The frontend reads `app/frontend/.env.example`: `VITE_API_BASE_URL` (default
+`/api`) and `VITE_API_PROXY_TARGET` (dev-server proxy target, default
+`http://localhost:3000`). Only `VITE_`-prefixed vars reach the browser bundle —
+never put a secret there.
 
 Product images: `product_images` stores `productId`, public `url`, the Supabase
 `storagePath`, 1-based `position`, and `isPrimary` (partial unique index
