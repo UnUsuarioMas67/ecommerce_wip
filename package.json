@@ -7,8 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @ecommerce/schemas && npm run build -w @ecommerce/backend",
-    "dev": "npm run dev -w @ecommerce/backend"
+    "build": "npm run build -w @ecommerce/schemas && npm run build -w @ecommerce/backend && npm run build -w @ecommerce/frontend",
+    "dev": "npm run dev -w @ecommerce/backend",
+    "dev:frontend": "npm run dev -w @ecommerce/frontend"
   },
   "engines": {
     "node": ">=20"
