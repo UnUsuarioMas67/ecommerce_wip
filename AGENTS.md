@@ -62,8 +62,10 @@ Express 5 + Drizzle ORM + PostgreSQL API.
   webhook (`POST /payments/webhook`) is mounted with `express.raw({ type:
   'application/json' })` **before** the global `express.json()` so the raw body
   survives signature verification.
-- `src/middleware/auth.ts` — auth middleware. `src/middleware/upload.ts` —
-  multer memory upload (`images` field, up to 6 files, 5 MB each, JPEG/PNG/WebP).
+- `src/middleware/auth.ts` — auth middleware. `src/middleware/cors.ts` —
+  allowlist-based CORS (`CORS_ORIGINS`) mounted first in `app.ts`, before the
+  body parsers and routes. `src/middleware/upload.ts` — multer memory upload
+  (`images` field, up to 6 files, 5 MB each, JPEG/PNG/WebP).
 - `src/lib/stripe.ts` — Stripe client, Checkout Session builder, webhook
   signature verification (pinned API version). Checkout is `mode: 'payment'`;
   line items itemize the order products (subtotal only, no tax/shipping).
@@ -99,8 +101,9 @@ plugin, no `tailwind.config.js` — theme lives in `src/index.css` under
   `useSyncExternalStore` consumes it; tokens are rotated in place so the cached
   user survives a refresh. **Not** httpOnly cookies — a deliberate placeholder
   trade-off; the refresh token is readable by JS.
-- `src/lib/api.ts` — `apiFetch` wrapper over `fetch` (`VITE_API_BASE_URL`,
-  default `/api`). Adds the bearer token, and on `401` refreshes once
+- `src/lib/api.ts` — `apiFetch` wrapper over `fetch` (`VITE_API_BASE_URL`;
+  when unset it defaults to `http://localhost:3000` in dev and the same-origin
+  `/api` path in production). Adds the bearer token, and on `401` refreshes once
   (single-flight) and replays the request. A failed refresh clears the session,
   which returns the UI to the login page. Throws `ApiError` (`status`, `code`,
   and `message` taken from the API's `{ error, code }` body).
@@ -112,11 +115,11 @@ plugin, no `tailwind.config.js` — theme lives in `src/index.css` under
   `HomePage` (placeholder shell showing the signed-in user's name, role and
   email, plus sign out). `App.tsx` switches between them on session presence —
   no router yet.
-- `vite.config.ts` — dev server on `:5173`, proxying `/api/*` to
-  `VITE_API_PROXY_TARGET` (default `http://localhost:3000`) and stripping the
-  `/api` prefix. The backend has **no CORS middleware**, so the proxy (not an
-  `Access-Control-Allow-Origin` header) is what makes dev work; production needs
-  the same same-origin/reverse-proxy arrangement.
+- `vite.config.ts` — dev server on `:5173`. There is no dev proxy: the browser
+  calls the backend directly (`http://localhost:3000` by default), and the
+  backend's CORS allowlist (`CORS_ORIGINS`) admits any localhost port outside
+  production. Production is expected to serve the SPA and API from one origin
+  behind a reverse proxy; if they differ, set `CORS_ORIGINS` on the backend.
 - API types are imported **type-only** from `@ecommerce/schemas`, so the frontend
   tracks the backend contract without pulling Zod into the bundle — which means
   `packages/schemas` must be built before typechecking/building the frontend.
@@ -197,7 +200,10 @@ in both projects; the grants revoked by `0006` are defense in depth.
 See `app/backend/.env.example`; copy it to `.env.development` for the app and
 `.env.test` for Vitest. Notable: `DATABASE_URL` (Supabase session pooler; the
 `.env.test` copy must target the dedicated test database), `DB_POOL_MAX`
-(default 10), `JWT_SECRET` (min 32 chars; ephemeral in dev if unset),
+(default 10), `CORS_ORIGINS` (comma-separated browser origins; empty in
+production means same-origin only, and dev/test default to the local Vite
+origins plus any localhost port), `JWT_SECRET` (min 32 chars; ephemeral in dev
+if unset),
 `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CURRENCY` (default `usd`),
 `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `SUPABASE_URL`,
@@ -208,9 +214,9 @@ See `app/backend/.env.example`; copy it to `.env.development` for the app and
 `env.ts`). The default admin password policy: 8–64 chars with upper, lower,
 digit, and special character.
 
-The frontend reads `app/frontend/.env.example`: `VITE_API_BASE_URL` (default
-`/api`) and `VITE_API_PROXY_TARGET` (dev-server proxy target, default
-`http://localhost:3000`). Only `VITE_`-prefixed vars reach the browser bundle —
+The frontend reads `app/frontend/.env.example`: `VITE_API_BASE_URL` overrides
+the API base URL (unset means `http://localhost:3000` in dev and `/api` in
+production). Only `VITE_`-prefixed vars reach the browser bundle —
 never put a secret there.
 
 Product images: `product_images` stores `productId`, public `url`, the Supabase
