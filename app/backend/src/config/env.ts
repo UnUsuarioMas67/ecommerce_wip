@@ -40,6 +40,10 @@ const EnvSchema = z
     // Supabase session poolers cap client connections per project, so the pool
     // size is configurable instead of hard-coded.
     DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+    // Comma-separated browser origins allowed to call the API cross-origin.
+    // Parsed into an array below; unset means "same origin only" in production
+    // and the local Vite origins everywhere else.
+    CORS_ORIGINS: z.string().optional(),
     JWT_SECRET: z.string().min(32).optional(),
     ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
@@ -79,6 +83,11 @@ const EnvSchema = z
 
 const parsed = EnvSchema.parse(process.env);
 
+const configuredCorsOrigins = (parsed.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 if (!parsed.JWT_SECRET) {
   console.warn(
     '[env] JWT_SECRET is not set; generated an ephemeral secret. Access tokens will not survive a restart.',
@@ -87,6 +96,14 @@ if (!parsed.JWT_SECRET) {
 
 const env = {
   ...parsed,
+  // Production stays same-origin unless CORS_ORIGINS is set explicitly;
+  // development and tests allow the Vite dev server's default ports.
+  CORS_ORIGINS:
+    configuredCorsOrigins.length > 0
+      ? configuredCorsOrigins
+      : parsed.NODE_ENV === 'production'
+        ? []
+        : ['http://localhost:5173', 'http://127.0.0.1:5173'],
   JWT_SECRET: parsed.JWT_SECRET ?? randomBytes(32).toString('hex'),
   ADMIN_EMAIL: parsed.ADMIN_EMAIL ?? 'admin@ecommerce.test',
   ADMIN_PASSWORD: parsed.ADMIN_PASSWORD ?? 'ChangeMe1234!',

@@ -2,6 +2,7 @@ import express from 'express';
 import { setGlobalOptions } from 'express-zod-safe';
 
 import { AuthError, HttpError, pgErrorCode } from './lib/errors.js';
+import { corsMiddleware } from './middleware/cors.js';
 import { authRouter } from './routes/auth.js';
 import { productsRouter } from './routes/products.js';
 import { categoriesRouter } from './routes/categories.js';
@@ -13,6 +14,11 @@ import { paymentsRouter } from './routes/payments.js';
 setGlobalOptions({ missingSchemaBehavior: 'any' });
 
 const app = express();
+
+// First, so preflights are answered before the body parsers, routes and the
+// auth rate limiter, and so every response (including errors) carries the
+// CORS headers the browser needs to read it.
+app.use(corsMiddleware);
 
 app.use('/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
