@@ -2,7 +2,13 @@ import type { TokenResponse } from '@ecommerce/schemas';
 
 import { getSession, setSession, updateSessionTokens } from './session';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
+// In development the app talks to the backend directly (cross-origin, so the
+// backend's CORS allowlist must include the dev server origin). Production
+// defaults to the same-origin `/api` path, which a reverse proxy forwards.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3000' : '/api')
+).replace(/\/$/, '');
 
 export class ApiError extends Error {
   readonly status: number;
