@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 // `NODE_ENV` selects the file: `.env.development` by default, `.env.test` under
@@ -53,7 +52,9 @@ const EnvSchema = z
           .map((origin) => origin.trim().replace(/\/+$/, ''))
           .filter(Boolean),
       ),
-    JWT_SECRET: z.string().min(32).optional(),
+    // Access/refresh token signing key, required in every environment so
+    // tokens survive a restart.
+    JWT_SECRET: z.string().min(32),
     ACCESS_TOKEN_TTL: z.string().min(1).default('15m'),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
     ADMIN_EMAIL: z.email().optional(),
@@ -72,7 +73,6 @@ const EnvSchema = z
     const missing = (
       [
         'DATABASE_URL',
-        'JWT_SECRET',
         'ADMIN_EMAIL',
         'ADMIN_PASSWORD',
         'STRIPE_SECRET_KEY',
@@ -92,12 +92,6 @@ const EnvSchema = z
 
 const parsed = EnvSchema.parse(process.env);
 
-if (!parsed.JWT_SECRET) {
-  console.warn(
-    '[env] JWT_SECRET is not set; generated an ephemeral secret. Access tokens will not survive a restart.',
-  );
-}
-
 const env = {
   ...parsed,
   // Production stays same-origin unless CORS_ORIGINS is set explicitly;
@@ -108,7 +102,6 @@ const env = {
       : parsed.NODE_ENV === 'production'
         ? []
         : ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  JWT_SECRET: parsed.JWT_SECRET ?? randomBytes(32).toString('hex'),
   ADMIN_EMAIL: parsed.ADMIN_EMAIL ?? 'admin@ecommerce.test',
   ADMIN_PASSWORD: parsed.ADMIN_PASSWORD ?? 'ChangeMe1234!',
 };

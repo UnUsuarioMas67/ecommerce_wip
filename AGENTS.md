@@ -52,8 +52,8 @@ Express 5 + Drizzle ORM + PostgreSQL API.
   `process.loadEnvFile`, walking up from the module until the file is found so it
   works both from `src/config/` and from the compiled `dist/src/config/`. The
   file cannot override `NODE_ENV`, which is set by the npm scripts via
-  `cross-env`. Falls back to a generated `JWT_SECRET` in dev. `DB_POOL_MAX`
-  (default 10) sizes the connection pool.
+  `cross-env`. `JWT_SECRET` is required in every environment (min 32 chars).
+  `DB_POOL_MAX` (default 10) sizes the connection pool.
 - `src/db/` — `schema.ts` (Drizzle tables), `index.ts` (`pg` Pool + Drizzle
   client, 10s connect timeout), `mappers.ts`.
 - `src/routes/` — `auth`, `products`, `categories`, `addresses`, `carts`,
@@ -202,8 +202,8 @@ See `app/backend/.env.example`; copy it to `.env.development` for the app and
 `.env.test` copy must target the dedicated test database), `DB_POOL_MAX`
 (default 10), `CORS_ORIGINS` (comma-separated browser origins; empty in
 production means same-origin only, and dev/test default to the local Vite
-origins plus any localhost port), `JWT_SECRET` (min 32 chars; ephemeral in dev
-if unset),
+origins plus any localhost port), `JWT_SECRET` (required in every environment,
+min 32 chars),
 `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL_DAYS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CURRENCY` (default `usd`),
 `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `SUPABASE_URL`,
