@@ -12,7 +12,12 @@ export type ProductImageRow = typeof productImages.$inferSelect;
 
 export { MAX_PRODUCT_IMAGES };
 
-export const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
+// Vercel Functions reject request bodies over 4.5 MB, so the transport caps
+// this endpoint well below what Postgres or Storage could hold. Six images at
+// 512 KB keep a full multipart upload at 3 MB, safely under that limit.
+// Raise it again only once uploads go straight from the browser to Supabase
+// Storage through signed URLs and stop passing through the function.
+export const MAX_PRODUCT_IMAGE_BYTES = 512 * 1024;
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/jpeg': 'jpg',

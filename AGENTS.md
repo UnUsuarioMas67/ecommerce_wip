@@ -65,7 +65,8 @@ Express 5 + Drizzle ORM + PostgreSQL API.
 - `src/middleware/auth.ts` — auth middleware. `src/middleware/cors.ts` —
   allowlist-based CORS (`CORS_ORIGINS`) mounted first in `app.ts`, before the
   body parsers and routes. `src/middleware/upload.ts` — multer memory upload
-  (`images` field, up to 6 files, 5 MB each, JPEG/PNG/WebP).
+  (`images` field, up to 6 files, 512 KB each, JPEG/PNG/WebP — capped so a
+  multipart upload stays below Vercel's 4.5 MB function body limit).
 - `src/lib/stripe.ts` — Stripe client, Checkout Session builder, webhook
   signature verification (pinned API version). Checkout is `mode: 'payment'`;
   line items itemize the order products (subtotal only, no tax/shipping).
