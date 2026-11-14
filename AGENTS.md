@@ -254,3 +254,4 @@ Stripe-managed and never accepted from clients.
 - Create a new branch when working on new features.
 - When committing your work, split it into smaller, meaningful commits.
 - Do **not** commit directly into `main` unless explicitly ordered to.
+- Do **not** push to GitHub unless explicitly ordered to.
