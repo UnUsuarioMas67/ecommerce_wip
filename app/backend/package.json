@@ -12,7 +12,9 @@
     "test": "cross-env NODE_ENV=test vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "seed:admin": "cross-env NODE_ENV=development tsx src/scripts/seed-admin.ts",
+    "seed:admin:prod": "cross-env NODE_ENV=production tsx src/scripts/seed-admin.ts"
   },
   "dependencies": {
     "@ecommerce/schemas": "^1.0.0",
