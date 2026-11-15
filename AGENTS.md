@@ -45,7 +45,11 @@ product image schemas (`ProductImageSchema`, `ProductImagesSchema`,
 
 Express 5 + Drizzle ORM + PostgreSQL API.
 
-- `src/index.ts` — entrypoint: seeds an admin user, then listens on `env.PORT`.
+- `src/index.ts` — entrypoint: listens on `env.PORT`. It does no database work at
+  import time, so a serverless host can load the app without touching Postgres.
+- `src/scripts/seed-admin.ts` — one-off `seed:admin` / `seed:admin:prod` CLI:
+  upserts the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD` through `src/seed.ts`,
+  then closes the pool.
 - `src/app.ts` — builds the Express app, mounts routers, JSON error handler.
 - `src/config/env.ts` — Zod-validated env; loads
   `app/backend/.env.<NODE_ENV>` (`development` when unset) via
@@ -137,6 +141,8 @@ npm run test -w @ecommerce/backend   # cross-env NODE_ENV=test, loads .env.test
 npm run db:generate -w @ecommerce/backend
 npm run db:migrate -w @ecommerce/backend
 npm run db:studio -w @ecommerce/backend
+npm run seed:admin -w @ecommerce/backend       # NODE_ENV=development, upserts the admin
+npm run seed:admin:prod -w @ecommerce/backend  # NODE_ENV=production, loads .env.production
 npm run typecheck -w @ecommerce/frontend
 ```
 
@@ -154,6 +160,11 @@ database and does not fall back to `.env.development`. `db:generate` /
 `db:migrate` / `db:studio` load `.env.<NODE_ENV>` (default `.env.development`)
 and operate on that file's `DATABASE_URL` (the log line printed by
 `drizzle.config.ts` shows which host).
+
+`seed:admin` / `seed:admin:prod` likewise load `.env.<NODE_ENV>` and upsert the
+admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`; re-running resets that user's
+password and role. `seed:admin:prod` needs the full `.env.production` (not just
+`DATABASE_URL`) because `env.ts` validates every production-only variable.
 
 ## Database (Supabase Postgres)
 

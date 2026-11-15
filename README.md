@@ -49,16 +49,18 @@ Copy-Item app/backend/.env.example app/backend/.env.development
 
 The app loads `app/backend/.env.<NODE_ENV>` (`.env.development` when unset).
 `JWT_SECRET` is required in every environment and must be at least 32
-characters. Then apply the migrations and start the API:
+characters. Then apply the migrations, create the admin user, and start the API:
 
 ```powershell
 npm run db:migrate -w @ecommerce/backend
+npm run seed:admin -w @ecommerce/backend
 npm run dev
 ```
 
 The API listens on `http://localhost:3000`; `GET /health` should return
-`{"status":"ok"}`. An admin user is seeded on startup from `ADMIN_EMAIL` and
-`ADMIN_PASSWORD`.
+`{"status":"ok"}`. `seed:admin` creates the admin from `ADMIN_EMAIL` and
+`ADMIN_PASSWORD`, or resets that user's password and role when it already
+exists, so it is safe to re-run. Seeding is not part of app startup.
 
 ### Start the frontend
 
@@ -83,6 +85,8 @@ defaults already admit any localhost port.
 | `npm run db:generate -w @ecommerce/backend` | Generate a Drizzle migration |
 | `npm run db:migrate -w @ecommerce/backend` | Apply pending migrations |
 | `npm run db:studio -w @ecommerce/backend` | Open Drizzle Studio |
+| `npm run seed:admin -w @ecommerce/backend` | Create or reset the bootstrap admin from `.env.development` |
+| `npm run seed:admin:prod -w @ecommerce/backend` | Same, using `.env.production` |
 | `npm run typecheck -w @ecommerce/frontend` | Typecheck the SPA |
 
 ## Environment variables
@@ -95,7 +99,7 @@ See `app/backend/.env.example` for the annotated list. The main ones:
 | `JWT_SECRET` | Access token signing secret, 32+ chars, required everywhere |
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL_DAYS` | Token lifetimes (defaults `15m` / `30`) |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Bootstrap admin, seeded on startup |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Bootstrap admin, created by `seed:admin` |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe API and webhook signing |
 | `STRIPE_SUCCESS_URL` / `STRIPE_CANCEL_URL` | Checkout redirect targets |
 | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | Storage access for product images |
