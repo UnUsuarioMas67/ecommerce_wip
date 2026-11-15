@@ -5,5 +5,5 @@ try {
   const admin = await seedAdminUser();
   console.log(`[seed] admin user ready (${admin.email})`);
 } finally {
-  closeDb();
+  await closeDb();
 }
