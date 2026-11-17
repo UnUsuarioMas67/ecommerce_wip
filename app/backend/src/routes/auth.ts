@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { eq } from 'drizzle-orm';
-import rateLimit from 'express-rate-limit';
+// import rateLimit from 'express-rate-limit';
 import validate from 'express-zod-safe';
 
 import {
@@ -23,17 +23,19 @@ import {
 
 export const authRouter = Router();
 
-const credentialsLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'Too many attempts, try again later', code: 'RATE_LIMITED' },
-});
+// Rate limit has been because it was causing errors in Vercel
+
+// const credentialsLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   limit: 10,
+//   standardHeaders: 'draft-8',
+//   legacyHeaders: false,
+//   message: { error: 'Too many attempts, try again later', code: 'RATE_LIMITED' },
+// });
 
 authRouter.post(
   '/register',
-  credentialsLimiter,
+  // credentialsLimiter,
   validate({ body: CreateUserSchema }),
   async (req, res) => {
     const { user, tokens } = await registerUser(req.body, req.get('user-agent'));
@@ -43,7 +45,7 @@ authRouter.post(
 
 authRouter.post(
   '/login',
-  credentialsLimiter,
+  // credentialsLimiter,
   validate({ body: LoginSchema }),
   async (req, res) => {
     const { user, tokens } = await loginUser(req.body, req.get('user-agent'));
